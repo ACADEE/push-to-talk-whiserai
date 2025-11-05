@@ -393,7 +393,7 @@ class LiveDictationApp:
 
         # Microphone Selection Section
         mic_frame = ttk.LabelFrame(main_frame, text="Microphone Selection", padding="15")
-        mic_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        mic_frame.grid(row=10, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         # Store the mode_frame for later use in on_mode_changed
         self.mode_frame = mode_frame
         mic_frame.columnconfigure(0, weight=1)
@@ -413,7 +413,7 @@ class LiveDictationApp:
 
         # Language Selection Section
         lang_frame = ttk.LabelFrame(main_frame, text="Language Selection", padding="15")
-        lang_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        lang_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         lang_frame.columnconfigure(0, weight=1)
 
         ttk.Label(lang_frame, text="Dictation Language:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -443,7 +443,7 @@ class LiveDictationApp:
 
         # Hotkey Configuration Section
         hotkey_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Hotkey", padding="15")
-        hotkey_frame.grid(row=10, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        hotkey_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         hotkey_frame.columnconfigure(0, weight=1)
 
         ttk.Label(hotkey_frame, text="Hold this key combination to record:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -1525,11 +1525,17 @@ class LiveDictationApp:
         except Exception as e:
             # Log the error for debugging instead of silently failing
             error_msg = f"Error in process_audio_chunk: {str(e)}"
+            print(f"DEBUG: Exception caught: {error_msg}")  # Debug output
+
+            # Capture error message before lambda (to avoid scope issues)
+            error_display = f"⚠️ Error: {str(e)[:50]}"
+
             # Show error in status for a moment
-            self.root.after(0, lambda: self.status_label.config(
-                text=f"⚠️ Error: {str(e)[:50]}",
+            self.root.after(0, lambda msg=error_display: self.status_label.config(
+                text=msg,
                 foreground="orange"
             ))
+
             # Restore normal status after 3 seconds
             import time
             def restore_status():
@@ -1621,10 +1627,14 @@ class LiveDictationApp:
         except Exception as e:
             # Show error to user instead of silently failing
             error_msg = f"⚠️ Typing failed: {str(e)[:40]}"
-            self.root.after(0, lambda: self.status_label.config(
-                text=error_msg,
+            print(f"DEBUG: type_text() exception: {str(e)}")  # Full error in console
+
+            # Capture error message before lambda (to avoid scope issues)
+            self.root.after(0, lambda msg=error_msg: self.status_label.config(
+                text=msg,
                 foreground="orange"
             ))
+
             # Restore status after 3 seconds
             def restore():
                 import time
