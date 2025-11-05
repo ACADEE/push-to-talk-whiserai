@@ -37,6 +37,8 @@ class LiveDictationApp:
         self.app_dir = Path(os.path.dirname(os.path.abspath(__file__)))
         self.api_key_file = self.app_dir / "api_key.txt"
         self.mic_config_file = self.app_dir / "microphone.txt"
+        self.prompt_file = self.app_dir / "prompt_quality.txt"
+        self.custom_words_file = self.app_dir / "custom_words.txt"
 
         # State variables
         self.is_recording = False
@@ -68,6 +70,10 @@ class LiveDictationApp:
 
         # Load saved API key
         self.load_api_key()
+
+        # Load saved prompt quality and custom words
+        self.load_prompt_quality()
+        self.load_custom_words()
 
         # Load available audio devices
         self.load_audio_devices()
@@ -295,6 +301,7 @@ class LiveDictationApp:
 
         def update_prompt():
             self.prompt_text = self.prompt_text_widget.get("1.0", tk.END).strip()
+            self.save_prompt_quality()  # Auto-save on change
 
         # Update prompt on any key release
         self.prompt_text_widget.bind('<KeyRelease>', lambda e: update_prompt())
@@ -352,6 +359,8 @@ class LiveDictationApp:
                         target = parts[1].strip()
                         if source and target:
                             self.custom_replacements[source] = target
+
+            self.save_custom_words()  # Auto-save on change
 
         # Update replacements on any key release
         self.replacements_text_widget.bind('<KeyRelease>', lambda e: update_replacements())
@@ -801,6 +810,77 @@ class LiveDictationApp:
             messagebox.showinfo("Success", "API key saved successfully!\n\nIt will be loaded automatically next time.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to initialize OpenAI client: {str(e)}")
+
+    def load_prompt_quality(self):
+        """Load saved prompt quality text from file if it exists"""
+        try:
+            if self.prompt_file.exists():
+                with open(self.prompt_file, 'r', encoding='utf-8') as f:
+                    saved_prompt = f.read().strip()
+                    if saved_prompt:
+                        # Populate the text widget
+                        self.prompt_text_widget.delete("1.0", tk.END)
+                        self.prompt_text_widget.insert("1.0", saved_prompt)
+                        # Update the variable
+                        self.prompt_text = saved_prompt
+        except Exception as e:
+            pass  # Silently handle errors
+
+    def save_prompt_quality(self):
+        """Save prompt quality text to file"""
+        try:
+            prompt_text = self.prompt_text_widget.get("1.0", tk.END).strip()
+            with open(self.prompt_file, 'w', encoding='utf-8') as f:
+                f.write(prompt_text)
+            self.prompt_text = prompt_text
+        except Exception as e:
+            pass  # Silently handle errors
+
+    def load_custom_words(self):
+        """Load saved custom word replacements from file if it exists"""
+        try:
+            if self.custom_words_file.exists():
+                with open(self.custom_words_file, 'r', encoding='utf-8') as f:
+                    saved_rules = f.read().strip()
+                    if saved_rules:
+                        # Populate the text widget
+                        self.replacements_text_widget.delete("1.0", tk.END)
+                        self.replacements_text_widget.insert("1.0", saved_rules)
+
+                        # Parse and update the replacements dictionary
+                        self.custom_replacements = {}
+                        for line in saved_rules.split('\n'):
+                            line = line.strip()
+                            if '->' in line:
+                                parts = line.split('->')
+                                if len(parts) == 2:
+                                    source = parts[0].strip()
+                                    target = parts[1].strip()
+                                    if source and target:
+                                        self.custom_replacements[source] = target
+        except Exception as e:
+            pass  # Silently handle errors
+
+    def save_custom_words(self):
+        """Save custom word replacements to file"""
+        try:
+            rules_text = self.replacements_text_widget.get("1.0", tk.END).strip()
+            with open(self.custom_words_file, 'w', encoding='utf-8') as f:
+                f.write(rules_text)
+
+            # Update the replacements dictionary
+            self.custom_replacements = {}
+            for line in rules_text.split('\n'):
+                line = line.strip()
+                if '->' in line:
+                    parts = line.split('->')
+                    if len(parts) == 2:
+                        source = parts[0].strip()
+                        target = parts[1].strip()
+                        if source and target:
+                            self.custom_replacements[source] = target
+        except Exception as e:
+            pass  # Silently handle errors
 
     def register_hotkey(self):
         """Register the push-to-talk hotkey"""
@@ -1283,6 +1363,9 @@ class LiveDictationApp:
             # Get transcribed text
             transcribed_text = transcript.text.strip()
 
+            # Debug: Show what Whisper returned
+            print(f"DEBUG: Whisper returned: '{transcribed_text}'")
+
             # Filter out known Whisper hallucinations
             hallucinations = [
                 "sous-titres réalisés para la communauté d'amara.org",
@@ -1316,26 +1399,36 @@ class LiveDictationApp:
 
             # Step 1: Clean filler words from transcription
             cleaned_text = self.clean_filler_words(transcribed_text)
+            print(f"DEBUG: After clean_filler_words: '{cleaned_text}'")
 
             # Step 2: Convert verbal punctuation commands to symbols
             # "deux points" → ":" or "period" → "."
             cleaned_text = self.apply_verbal_punctuation(cleaned_text)
+            print(f"DEBUG: After apply_verbal_punctuation: '{cleaned_text}'")
 
             # Step 3: Apply custom word replacements (e.g., "Acadie" -> "ACADEE")
             cleaned_text = self.apply_custom_replacements(cleaned_text)
+            print(f"DEBUG: After apply_custom_replacements: '{cleaned_text}'")
 
             # Step 4: Apply language-specific punctuation rules
             if self.selected_language == "fr":
                 # French: non-breaking spaces before ; : ? !  and « guillemets »
                 cleaned_text = self.apply_french_punctuation(cleaned_text)
+                print(f"DEBUG: After apply_french_punctuation: '{cleaned_text}'")
             elif self.selected_language == "en":
                 # English: no spaces before punctuation and "quotes"
                 cleaned_text = self.apply_english_punctuation(cleaned_text)
+                print(f"DEBUG: After apply_english_punctuation: '{cleaned_text}'")
             # For other languages (de, es, it), skip special punctuation processing
 
             # Type the cleaned text if it's valid
-            if cleaned_text and len(cleaned_text) > 1:
+            if cleaned_text and len(cleaned_text) > 0:  # Changed from > 1 to > 0
+                # Debug: Show what we're about to type
+                print(f"DEBUG: About to type: '{cleaned_text}' (length: {len(cleaned_text)})")
                 self.type_text(cleaned_text)
+            else:
+                # Debug: Show why we're not typing
+                print(f"DEBUG: Text too short or empty: '{cleaned_text}' (length: {len(cleaned_text) if cleaned_text else 0})")
 
             # Restore live mode status after successful typing
             if self.recording_mode == "live" and self.live_recording_enabled:
@@ -1390,10 +1483,13 @@ class LiveDictationApp:
     def type_text(self, text):
         """Type transcribed text into the active window using clipboard"""
         try:
+            print(f"DEBUG: type_text() called with: '{text}'")
+
             # Add a space before the text for natural spacing
             # (unless it's the first text or starts with punctuation)
             if text and text[0] not in '.,!?;:':
                 text = ' ' + text
+                print(f"DEBUG: Added space, now: '{text}'")
 
             # Save current clipboard content
             old_clipboard = ""
@@ -1420,6 +1516,7 @@ class LiveDictationApp:
             for attempt in range(max_retries):
                 try:
                     pyautogui.hotkey('ctrl', 'v')
+                    print(f"DEBUG: Successfully pasted text using Ctrl+V")
                     break
                 except Exception as paste_err:
                     if attempt == max_retries - 1:
