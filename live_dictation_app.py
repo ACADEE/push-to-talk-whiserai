@@ -874,7 +874,6 @@ class LiveDictationApp:
             else:
                 # Show the actual error message (truncated)
                 self.update_api_status("error", f"API Status: ✗ {error_msg[:50]}")
-                print(f"DEBUG: API Status Check Error: {error_msg}")  # Full error in console
 
     def update_api_status(self, status_type, message):
         """Update the API status label with color"""
@@ -1238,7 +1237,6 @@ class LiveDictationApp:
                 text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
         except Exception as e:
             # If verbal punctuation conversion fails, return original text
-            print(f"DEBUG: Verbal punctuation error: {str(e)}")
             return text
 
         return text
@@ -1261,7 +1259,6 @@ class LiveDictationApp:
                 text = re.sub(pattern, target_safe, text, flags=re.IGNORECASE)
         except Exception as e:
             # If custom replacement fails, return original text
-            print(f"DEBUG: Custom replacement error: {str(e)}")
             return text
 
         return text
@@ -1335,7 +1332,6 @@ class LiveDictationApp:
 
         except Exception as e:
             # If French punctuation fails, return original text
-            print(f"DEBUG: French punctuation error: {str(e)}")
             return text
 
     def clean_filler_words(self, text):
@@ -1460,9 +1456,6 @@ class LiveDictationApp:
             # Get transcribed text
             transcribed_text = transcript.text.strip()
 
-            # Debug: Show what Whisper returned
-            print(f"DEBUG: Whisper returned: '{transcribed_text}'")
-
             # Filter out known Whisper hallucinations
             hallucinations = [
                 "sous-titres réalisés para la communauté d'amara.org",
@@ -1496,36 +1489,26 @@ class LiveDictationApp:
 
             # Step 1: Clean filler words from transcription
             cleaned_text = self.clean_filler_words(transcribed_text)
-            print(f"DEBUG: After clean_filler_words: '{cleaned_text}'")
 
             # Step 2: Convert verbal punctuation commands to symbols
             # "deux points" → ":" or "period" → "."
             cleaned_text = self.apply_verbal_punctuation(cleaned_text)
-            print(f"DEBUG: After apply_verbal_punctuation: '{cleaned_text}'")
 
             # Step 3: Apply custom word replacements (e.g., "Acadie" -> "ACADEE")
             cleaned_text = self.apply_custom_replacements(cleaned_text)
-            print(f"DEBUG: After apply_custom_replacements: '{cleaned_text}'")
 
             # Step 4: Apply language-specific punctuation rules
             if self.selected_language == "fr":
                 # French: non-breaking spaces before ; : ? !  and « guillemets »
                 cleaned_text = self.apply_french_punctuation(cleaned_text)
-                print(f"DEBUG: After apply_french_punctuation: '{cleaned_text}'")
             elif self.selected_language == "en":
                 # English: no spaces before punctuation and "quotes"
                 cleaned_text = self.apply_english_punctuation(cleaned_text)
-                print(f"DEBUG: After apply_english_punctuation: '{cleaned_text}'")
             # For other languages (de, es, it), skip special punctuation processing
 
             # Type the cleaned text if it's valid
             if cleaned_text and len(cleaned_text) > 0:  # Changed from > 1 to > 0
-                # Debug: Show what we're about to type
-                print(f"DEBUG: About to type: '{cleaned_text}' (length: {len(cleaned_text)})")
                 self.type_text(cleaned_text)
-            else:
-                # Debug: Show why we're not typing
-                print(f"DEBUG: Text too short or empty: '{cleaned_text}' (length: {len(cleaned_text) if cleaned_text else 0})")
 
             # Restore live mode status after successful typing
             if self.recording_mode == "live" and self.live_recording_enabled:
@@ -1537,7 +1520,6 @@ class LiveDictationApp:
         except Exception as e:
             # Log the error for debugging instead of silently failing
             error_msg = f"Error in process_audio_chunk: {str(e)}"
-            print(f"DEBUG: Exception caught: {error_msg}")  # Debug output
 
             # Capture error message before lambda (to avoid scope issues)
             error_display = f"⚠️ Error: {str(e)[:50]}"
@@ -1586,13 +1568,10 @@ class LiveDictationApp:
     def type_text(self, text):
         """Type transcribed text into the active window using clipboard"""
         try:
-            print(f"DEBUG: type_text() called with: '{text}'")
-
             # Add a space before the text for natural spacing
             # (unless it's the first text or starts with punctuation)
             if text and text[0] not in '.,!?;:':
                 text = ' ' + text
-                print(f"DEBUG: Added space, now: '{text}'")
 
             # Save current clipboard content
             old_clipboard = ""
@@ -1615,16 +1594,23 @@ class LiveDictationApp:
                         raise Exception(f"Clipboard copy failed: {copy_err}")
                     time.sleep(0.1)
 
-            # Paste using Ctrl+V with retry logic
-            for attempt in range(max_retries):
+            # CRITICAL FIX for Notepad on Windows:
+            # Release all modifier keys before pasting to avoid menu mnemonics
+            # This fixes the issue where Ctrl+Alt activates menu letters in Notepad
+            import keyboard
+
+            # Release all common modifier keys
+            for key in ['ctrl', 'shift', 'alt', 'win']:
                 try:
-                    pyautogui.hotkey('ctrl', 'v')
-                    print(f"DEBUG: Successfully pasted text using Ctrl+V")
-                    break
-                except Exception as paste_err:
-                    if attempt == max_retries - 1:
-                        raise Exception(f"Paste failed: {paste_err}")
-                    time.sleep(0.1)
+                    keyboard.release(key)
+                except:
+                    pass  # Ignore if key wasn't pressed
+
+            # Wait a bit to ensure keys are released
+            time.sleep(0.15)
+
+            # Paste using keyboard library for better control (more reliable than pyautogui for Notepad)
+            keyboard.press_and_release('ctrl+v')
 
             # Small delay before restoring clipboard
             time.sleep(0.1)
@@ -1639,7 +1625,6 @@ class LiveDictationApp:
         except Exception as e:
             # Show error to user instead of silently failing
             error_msg = f"⚠️ Typing failed: {str(e)[:40]}"
-            print(f"DEBUG: type_text() exception: {str(e)}")  # Full error in console
 
             # Capture error message before lambda (to avoid scope issues)
             self.root.after(0, lambda msg=error_msg: self.status_label.config(
