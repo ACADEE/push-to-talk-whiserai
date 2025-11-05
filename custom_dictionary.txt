@@ -1,0 +1,22 @@
+# Custom Dictionary File
+# Format: phonetic_phrase -> CORRECT_SPELLING
+# Each line contains one mapping
+# The matching is case-insensitive, but the replacement preserves the case specified
+
+# Example company/brand names
+acadi -> ACADEE
+acady -> ACADEE
+academy -> ACADEE
+
+# Acronyms
+jay eff kay -> JFK
+triple a -> AAA
+a a a -> AAA
+
+# Common technical terms
+jay son -> JSON
+sequel -> SQL
+my sequel -> MySQL
+postgres -> PostgreSQL
+
+# Add your custom mappings below:
