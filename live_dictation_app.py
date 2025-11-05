@@ -16,6 +16,7 @@ import sounddevice as sd
 import numpy as np
 import pyautogui
 import pyperclip
+import keyboard
 from openai import OpenAI
 
 
@@ -38,6 +39,7 @@ class LiveDictationApp:
 
         # State variables
         self.is_recording = False
+        self.is_hotkey_active = False
         self.recording_thread = None
         self.api_key = None
         self.client = None
@@ -48,6 +50,7 @@ class LiveDictationApp:
         self.current_audio_level = 0
         self.level_update_running = False
         self.selected_language = "fr"  # Default: French
+        self.hotkey_combination = "ctrl+shift"  # Default hotkey
 
         # Setup GUI
         self.setup_gui()
@@ -60,6 +63,9 @@ class LiveDictationApp:
 
         # Start audio level monitoring
         self.start_level_monitoring()
+
+        # Register push-to-talk hotkey
+        self.register_hotkey()
 
     def setup_gui(self):
         """Setup the GUI components"""
@@ -177,9 +183,40 @@ class LiveDictationApp:
 
         self.language_combo.bind('<<ComboboxSelected>>', on_language_changed)
 
+        # Hotkey Configuration Section
+        hotkey_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Hotkey", padding="15")
+        hotkey_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        hotkey_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(hotkey_frame, text="Hold this key combination to record:").grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        # Hotkey options
+        hotkey_options = [
+            "ctrl+shift (Default)",
+            "ctrl+alt",
+            "ctrl+space",
+            "shift+space",
+            "alt+space",
+        ]
+
+        self.hotkey_combo = ttk.Combobox(hotkey_frame, state="readonly", width=37)
+        self.hotkey_combo['values'] = hotkey_options
+        self.hotkey_combo.current(0)  # Default: ctrl+shift
+        self.hotkey_combo.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+
+        def on_hotkey_changed(event=None):
+            selected = self.hotkey_combo.get()
+            # Extract the actual combination (remove " (Default)")
+            self.hotkey_combination = selected.split(' (')[0]
+            # Re-register hotkey
+            self.unregister_hotkey()
+            self.register_hotkey()
+
+        self.hotkey_combo.bind('<<ComboboxSelected>>', on_hotkey_changed)
+
         # Audio Level Meter Section
         level_frame = ttk.LabelFrame(main_frame, text="Microphone Level", padding="15")
-        level_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        level_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         level_frame.columnconfigure(0, weight=1)
 
         ttk.Label(level_frame, text="Check if microphone is working:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -202,40 +239,42 @@ class LiveDictationApp:
         self.level_label.grid(row=2, column=0, pady=5)
 
         # Recording Control Section
-        control_frame = ttk.LabelFrame(main_frame, text="Dictation Control", padding="15")
-        control_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        control_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Status", padding="15")
+        control_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
 
         # Status indicator
         self.status_label = ttk.Label(
             control_frame,
-            text="⚪ Stopped",
-            font=('Arial', 12, 'bold'),
+            text="⚪ Ready - Hold hotkey to start",
+            font=('Arial', 11, 'bold'),
             foreground="gray"
         )
         self.status_label.grid(row=0, column=0, pady=10)
 
-        # Start/Stop button
-        self.start_stop_button = ttk.Button(
+        # Instruction label
+        instruction_text = "Press and HOLD your hotkey, then speak.\nRelease the hotkey when done."
+        instruction_label = ttk.Label(
             control_frame,
-            text="▶ START DICTATION",
-            command=self.toggle_recording,
-            width=30
+            text=instruction_text,
+            font=('Arial', 9),
+            foreground='blue',
+            justify=tk.CENTER
         )
-        self.start_stop_button.grid(row=1, column=0, pady=5)
+        instruction_label.grid(row=1, column=0, pady=5)
 
         # Instructions
         instructions_frame = ttk.Frame(main_frame)
-        instructions_frame.grid(row=6, column=0, sticky=(tk.W, tk.E))
+        instructions_frame.grid(row=7, column=0, sticky=(tk.W, tk.E))
 
         instructions = (
             "Instructions:\n"
             "1. Enter your OpenAI API key and click Save\n"
             "2. Select your microphone and check the level meter\n"
             "3. Select your dictation language (Français, English, etc.)\n"
-            "4. Click 'START DICTATION' button\n"
+            "4. Select your push-to-talk hotkey (default: Ctrl+Shift)\n"
             "5. Open Word/Notepad and click where you want text\n"
-            "6. Speak naturally in your selected language\n"
-            "7. Click 'STOP DICTATION' when done"
+            "6. HOLD your hotkey and speak in your selected language\n"
+            "7. RELEASE the hotkey when done speaking"
         )
         info_label = ttk.Label(
             instructions_frame,
@@ -402,6 +441,33 @@ class LiveDictationApp:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to initialize OpenAI client: {str(e)}")
 
+    def register_hotkey(self):
+        """Register the push-to-talk hotkey"""
+        try:
+            keyboard.on_press_key(self.hotkey_combination, self.on_hotkey_press, suppress=False)
+            keyboard.on_release_key(self.hotkey_combination, self.on_hotkey_release, suppress=False)
+        except Exception as e:
+            pass  # Silently handle errors
+
+    def unregister_hotkey(self):
+        """Unregister the current hotkey"""
+        try:
+            keyboard.unhook_all()
+        except Exception as e:
+            pass  # Silently handle errors
+
+    def on_hotkey_press(self, event):
+        """Called when hotkey is pressed"""
+        if not self.is_hotkey_active and not self.is_recording:
+            self.is_hotkey_active = True
+            self.start_recording()
+
+    def on_hotkey_release(self, event):
+        """Called when hotkey is released"""
+        if self.is_hotkey_active:
+            self.is_hotkey_active = False
+            self.stop_recording()
+
     def toggle_recording(self):
         """Toggle recording on/off"""
         if not self.is_recording:
@@ -410,50 +476,34 @@ class LiveDictationApp:
             self.stop_recording()
 
     def start_recording(self):
-        """Start continuous recording and transcription"""
+        """Start push-to-talk recording"""
         # Validate API key
         if not self.client:
-            messagebox.showerror("Error", "Please save your API key first!")
             return
 
         # Get selected device
         device_selection = self.mic_combo.get()
         if not device_selection or device_selection == "No devices found":
-            messagebox.showerror("Error", "Please select a microphone!")
             return
 
         # Extract device index
         try:
             self.selected_device = int(device_selection.split(':')[0])
         except:
-            messagebox.showerror("Error", "Invalid microphone selection!")
             return
 
         self.is_recording = True
         self.audio_frames = []
 
         # Update UI
-        self.start_stop_button.config(text="⏹ STOP DICTATION")
         self.status_label.config(text="🔴 Recording - Speak Now!", foreground="red")
-        self.mic_combo.config(state="disabled")
-        self.save_api_button.config(state="disabled")
-        self.level_bar['value'] = 0
-
-        # Show instruction
-        messagebox.showinfo(
-            "Dictation Started",
-            "Microphone is now RECORDING!\n\n"
-            "📝 Click on your Word/Notepad document and start speaking.\n"
-            "✅ Text will appear automatically every ~3 seconds.\n"
-            "⏹ Click 'STOP DICTATION' when done."
-        )
 
         # Start recording thread
         self.recording_thread = threading.Thread(target=self.record_audio, daemon=True)
         self.recording_thread.start()
 
     def record_audio(self):
-        """Record audio in chunks and transcribe continuously"""
+        """Record audio while hotkey is held (push-to-talk mode)"""
         def audio_callback(indata, frames, time, status):
             if self.is_recording:
                 self.audio_frames.append(indata.copy())
@@ -483,32 +533,15 @@ class LiveDictationApp:
             )
             self.stream.start()
 
-            # Process audio in 3-second chunks for live transcription
-            chunk_duration = 3.0  # seconds
-
+            # Just keep recording until stop_recording() is called
+            # (when hotkey is released)
+            import time
             while self.is_recording:
-                # Wait for enough audio frames
-                import time
-                time.sleep(chunk_duration)
-
-                if len(self.audio_frames) > 0 and self.is_recording:
-                    # Get current chunk
-                    current_frames = self.audio_frames.copy()
-                    self.audio_frames = []  # Clear for next chunk
-
-                    # Process this chunk in a separate thread to avoid blocking
-                    threading.Thread(
-                        target=self.process_audio_chunk,
-                        args=(current_frames,),
-                        daemon=True
-                    ).start()
+                time.sleep(0.1)  # Check every 100ms if still recording
 
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror(
-                "Recording Error",
-                f"Failed to record audio: {str(e)}"
-            ))
-            self.root.after(0, self.stop_recording)
+            # Silently handle errors
+            pass
         finally:
             if self.stream:
                 self.stream.stop()
@@ -676,14 +709,32 @@ class LiveDictationApp:
             pass  # Silently handle errors
 
     def stop_recording(self):
-        """Stop recording"""
+        """Stop recording and process accumulated audio"""
         self.is_recording = False
 
         # Update UI
-        self.start_stop_button.config(text="▶ START DICTATION")
-        self.status_label.config(text="⚪ Stopped", foreground="gray")
-        self.mic_combo.config(state="readonly")
-        self.save_api_button.config(state="normal")
+        self.status_label.config(text="⏳ Processing...", foreground="orange")
+
+        # Process all accumulated audio in a separate thread
+        if len(self.audio_frames) > 0:
+            frames_to_process = self.audio_frames.copy()
+            self.audio_frames = []
+
+            # Process in background thread
+            def process_and_update():
+                self.process_audio_chunk(frames_to_process)
+                # Update UI when done
+                self.root.after(0, lambda: self.status_label.config(
+                    text="⚪ Ready - Hold hotkey to start",
+                    foreground="gray"
+                ))
+
+            threading.Thread(target=process_and_update, daemon=True).start()
+        else:
+            # No audio recorded, just update status
+            self.status_label.config(text="⚪ Ready - Hold hotkey to start", foreground="gray")
+
+        # Reset UI elements
         self.level_bar['value'] = 0
         self.level_label.config(text="🔇 No input detected", foreground="gray")
 
