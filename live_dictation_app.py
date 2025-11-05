@@ -51,6 +51,7 @@ class LiveDictationApp:
         self.level_update_running = False
         self.selected_language = "fr"  # Default: French
         self.hotkey_combination = "ctrl+shift"  # Default hotkey
+        self.hotkey_hook = None  # Store the hotkey hook
 
         # Cost tracking variables
         self.total_cost = 0.0
@@ -545,29 +546,66 @@ class LiveDictationApp:
     def register_hotkey(self):
         """Register the push-to-talk hotkey"""
         try:
-            keyboard.on_press_key(self.hotkey_combination, self.on_hotkey_press, suppress=False)
-            keyboard.on_release_key(self.hotkey_combination, self.on_hotkey_release, suppress=False)
+            # Unregister any existing hotkey first
+            self.unregister_hotkey()
+
+            # Use add_hotkey for combination press detection
+            # The callback is triggered when all keys in the combination are pressed
+            self.hotkey_hook = keyboard.add_hotkey(
+                self.hotkey_combination,
+                self.on_hotkey_press,
+                suppress=False
+            )
+
+            # Set up release detection for when user releases the keys
+            # This monitors all key releases
+            keyboard.on_release(self.on_any_key_release)
+
         except Exception as e:
             pass  # Silently handle errors
 
     def unregister_hotkey(self):
         """Unregister the current hotkey"""
         try:
-            keyboard.unhook_all()
+            if self.hotkey_hook is not None:
+                keyboard.remove_hotkey(self.hotkey_hook)
+                self.hotkey_hook = None
+            # Note: we don't unhook_all() as that would remove the release listener too
         except Exception as e:
             pass  # Silently handle errors
 
-    def on_hotkey_press(self, event):
-        """Called when hotkey is pressed"""
+    def on_hotkey_press(self):
+        """Called when hotkey combination is pressed"""
         if not self.is_hotkey_active and not self.is_recording:
             self.is_hotkey_active = True
             self.start_recording()
 
-    def on_hotkey_release(self, event):
-        """Called when hotkey is released"""
-        if self.is_hotkey_active:
-            self.is_hotkey_active = False
-            self.stop_recording()
+    def on_any_key_release(self, event):
+        """Called when any key is released - check if we should stop recording"""
+        if self.is_hotkey_active and self.is_recording:
+            # Check if any key in our combination was released
+            # Parse the combination (e.g., "ctrl+shift" -> ["ctrl", "shift"])
+            keys_in_combo = self.hotkey_combination.lower().replace(" ", "").split('+')
+
+            # Normalize key names for comparison
+            released_key = event.name.lower()
+
+            # Map common key variations
+            key_mappings = {
+                'left ctrl': 'ctrl',
+                'right ctrl': 'ctrl',
+                'left shift': 'shift',
+                'right shift': 'shift',
+                'left alt': 'alt',
+                'right alt': 'alt',
+            }
+
+            normalized_released_key = key_mappings.get(released_key, released_key)
+
+            # If the released key is part of our combination, stop recording
+            if normalized_released_key in keys_in_combo:
+                self.is_hotkey_active = False
+                self.stop_recording()
 
     def toggle_recording(self):
         """Toggle recording on/off"""
@@ -883,6 +921,11 @@ class LiveDictationApp:
         self.level_update_running = False
         if self.is_recording:
             self.stop_recording()
+        # Unhook all keyboard listeners
+        try:
+            keyboard.unhook_all()
+        except:
+            pass
         self.root.destroy()
 
 
