@@ -324,7 +324,7 @@ class LiveDictationApp:
 
         ttk.Label(
             prompt_frame,
-            text='Example: "La conversation suivante est une dictée d\'un avocat pour la constitution d\'un dossier client."',
+            text='Exemple : Conversation dictée par un avocat pour la prise de notes lors d\'une discussion avec son client.',
             font=('Arial', 8),
             foreground='gray',
             wraplength=500
@@ -356,6 +356,14 @@ class LiveDictationApp:
 
         # Update prompt on any key release
         self.prompt_text_widget.bind('<KeyRelease>', lambda e: update_prompt())
+
+        # Save button for prompt quality
+        save_prompt_button = ttk.Button(
+            prompt_frame,
+            text="💾 Save Prompt",
+            command=lambda: update_prompt()
+        )
+        save_prompt_button.grid(row=3, column=0, pady=10)
 
         # Custom Word Replacements Section (NEW!)
         replacements_frame = ttk.LabelFrame(main_frame, text="🔤 Custom Word Replacements", padding="15")
@@ -415,6 +423,14 @@ class LiveDictationApp:
 
         # Update replacements on any key release
         self.replacements_text_widget.bind('<KeyRelease>', lambda e: update_replacements())
+
+        # Save button for custom words
+        save_words_button = ttk.Button(
+            replacements_frame,
+            text="💾 Save Custom Words",
+            command=lambda: update_replacements()
+        )
+        save_words_button.grid(row=3, column=0, pady=10)
 
         # Microphone Selection Section
         mic_frame = ttk.LabelFrame(main_frame, text="Microphone Selection", padding="15")
@@ -521,9 +537,66 @@ class LiveDictationApp:
         )
         self.level_label.grid(row=2, column=0, pady=5)
 
+        # Tip Me Section
+        tip_frame = ttk.LabelFrame(main_frame, text="☕ Found This App Useful?", padding="15")
+        tip_frame.grid(row=12, column=0, sticky=(tk.W, tk.E), pady=(15, 10))
+        tip_frame.columnconfigure(0, weight=1)
+
+        tip_text = (
+            "This app is 100% free, open-source, and subscription-free—built to save you time and money.\n"
+            "If you find it valuable, please consider buying me a coffee!\n\n"
+            "Your support directly fuels future updates, new features, and helps keep the project alive.\n"
+            "Thank you!"
+        )
+        ttk.Label(
+            tip_frame,
+            text=tip_text,
+            wraplength=500,
+            font=('Arial', 9),
+            justify=tk.CENTER
+        ).grid(row=0, column=0, pady=5)
+
+        # PayPal link button
+        def open_paypal():
+            import webbrowser
+            webbrowser.open("https://www.paypal.me/samdprod")
+
+        paypal_button = ttk.Button(
+            tip_frame,
+            text="☕ Buy Me a Coffee",
+            command=open_paypal
+        )
+        paypal_button.grid(row=1, column=0, pady=10)
+
+        # Footer
+        footer_frame = ttk.Frame(main_frame)
+        footer_frame.grid(row=13, column=0, sticky=(tk.W, tk.E), pady=(15, 10))
+
+        def open_acadee():
+            import webbrowser
+            webbrowser.open("http://acadee.fr/")
+
+        footer_label = ttk.Label(
+            footer_frame,
+            text="Done with ❤️ by ",
+            font=('Arial', 9),
+            foreground='gray'
+        )
+        footer_label.pack(side=tk.LEFT)
+
+        acadee_link = ttk.Label(
+            footer_frame,
+            text="ACADEE",
+            font=('Arial', 9, 'underline'),
+            foreground='blue',
+            cursor="hand2"
+        )
+        acadee_link.pack(side=tk.LEFT)
+        acadee_link.bind("<Button-1>", lambda e: open_acadee())
+
         # Instructions
         instructions_frame = ttk.Frame(main_frame)
-        instructions_frame.grid(row=12, column=0, sticky=(tk.W, tk.E))
+        instructions_frame.grid(row=14, column=0, sticky=(tk.W, tk.E))
 
         instructions = (
             "Instructions:\n"
