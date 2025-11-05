@@ -856,8 +856,8 @@ class LiveDictationApp:
 
         try:
             # Make a minimal API call to test connection
-            # Using models.list() as it's lightweight
-            self.client.models.list(limit=1)
+            # Check if whisper-1 model is accessible (what we actually need)
+            self.client.models.retrieve("whisper-1")
 
             # If successful, show green status
             self.update_api_status("ok", "API Status: ✓ OK")
@@ -872,7 +872,9 @@ class LiveDictationApp:
             elif "network" in error_msg.lower() or "connection" in error_msg.lower():
                 self.update_api_status("error", "API Status: ✗ Network error")
             else:
-                self.update_api_status("error", f"API Status: ✗ {error_msg[:30]}")
+                # Show the actual error message (truncated)
+                self.update_api_status("error", f"API Status: ✗ {error_msg[:50]}")
+                print(f"DEBUG: API Status Check Error: {error_msg}")  # Full error in console
 
     def update_api_status(self, status_type, message):
         """Update the API status label with color"""
