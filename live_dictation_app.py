@@ -15,6 +15,7 @@ from pathlib import Path
 import sounddevice as sd
 import numpy as np
 import pyautogui
+import pyperclip
 from openai import OpenAI
 
 
@@ -46,6 +47,7 @@ class LiveDictationApp:
         self.selected_device = None
         self.current_audio_level = 0
         self.level_update_running = False
+        self.selected_language = "fr"  # Default: French
 
         # Setup GUI
         self.setup_gui()
@@ -145,9 +147,40 @@ class LiveDictationApp:
         )
         refresh_button.grid(row=2, column=0, pady=5)
 
+        # Language Selection Section
+        lang_frame = ttk.LabelFrame(main_frame, text="Language Selection", padding="15")
+        lang_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        lang_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(lang_frame, text="Dictation Language:").grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        # Language options
+        languages = [
+            ("Français", "fr"),
+            ("English", "en"),
+            ("Deutsch", "de"),
+            ("Español", "es"),
+            ("Italiano", "it")
+        ]
+
+        self.language_combo = ttk.Combobox(lang_frame, state="readonly", width=37)
+        self.language_combo['values'] = [lang[0] for lang in languages]
+        self.language_combo.current(0)  # Default: Français
+        self.language_combo.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+
+        # Store language codes
+        self.language_codes = {lang[0]: lang[1] for lang in languages}
+
+        def on_language_changed(event=None):
+            selected = self.language_combo.get()
+            self.selected_language = self.language_codes[selected]
+            print(f"Language changed to: {selected} ({self.selected_language})")
+
+        self.language_combo.bind('<<ComboboxSelected>>', on_language_changed)
+
         # Audio Level Meter Section
         level_frame = ttk.LabelFrame(main_frame, text="Microphone Level", padding="15")
-        level_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        level_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         level_frame.columnconfigure(0, weight=1)
 
         ttk.Label(level_frame, text="Check if microphone is working:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -171,7 +204,7 @@ class LiveDictationApp:
 
         # Recording Control Section
         control_frame = ttk.LabelFrame(main_frame, text="Dictation Control", padding="15")
-        control_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        control_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
 
         # Status indicator
         self.status_label = ttk.Label(
@@ -193,16 +226,17 @@ class LiveDictationApp:
 
         # Instructions
         instructions_frame = ttk.Frame(main_frame)
-        instructions_frame.grid(row=5, column=0, sticky=(tk.W, tk.E))
+        instructions_frame.grid(row=6, column=0, sticky=(tk.W, tk.E))
 
         instructions = (
             "Instructions:\n"
             "1. Enter your OpenAI API key and click Save\n"
             "2. Select your microphone and check the level meter\n"
-            "3. Click 'START DICTATION' button\n"
-            "4. Open Word/Notepad and click where you want text\n"
-            "5. Speak naturally - text appears live every ~3 seconds\n"
-            "6. Click 'STOP DICTATION' when done"
+            "3. Select your dictation language (Français, English, etc.)\n"
+            "4. Click 'START DICTATION' button\n"
+            "5. Open Word/Notepad and click where you want text\n"
+            "6. Speak naturally in your selected language\n"
+            "7. Click 'STOP DICTATION' when done"
         )
         info_label = ttk.Label(
             instructions_frame,
@@ -508,7 +542,7 @@ class LiveDictationApp:
                 transcript = self.client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
-                    language="en"
+                    language=self.selected_language
                 )
 
             # Clean up temp file
@@ -528,15 +562,37 @@ class LiveDictationApp:
             # Continue recording even if one chunk fails
 
     def type_text(self, text):
-        """Type transcribed text into the active window"""
+        """Type transcribed text into the active window using clipboard"""
         try:
             # Add a space before the text for natural spacing
             # (unless it's the first text or starts with punctuation)
             if text and text[0] not in '.,!?;:':
                 text = ' ' + text
 
-            # Type the text with a small delay between characters
-            pyautogui.write(text, interval=0.01)
+            # Save current clipboard content
+            try:
+                old_clipboard = pyperclip.paste()
+            except:
+                old_clipboard = ""
+
+            # Copy text to clipboard
+            pyperclip.copy(text)
+
+            # Small delay to ensure clipboard is updated
+            import time
+            time.sleep(0.05)
+
+            # Paste using Ctrl+V
+            pyautogui.hotkey('ctrl', 'v')
+
+            # Small delay before restoring clipboard
+            time.sleep(0.1)
+
+            # Restore old clipboard content
+            try:
+                pyperclip.copy(old_clipboard)
+            except:
+                pass
 
         except Exception as e:
             print(f"Error typing text: {e}")

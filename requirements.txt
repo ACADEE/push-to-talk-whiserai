@@ -5,5 +5,6 @@ keyboard>=0.13.5
 sounddevice>=0.4.6
 numpy>=1.24.0
 pyautogui>=0.9.54
+pyperclip>=1.8.2
 wave
 pyinstaller>=6.0.0
