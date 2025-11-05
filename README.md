@@ -2,15 +2,22 @@
 
 A Windows desktop application that enables voice-to-text dictation directly into any active application using OpenAI's Whisper AI for speech recognition.
 
-## 📦 Two Apps Available
+## 📦 Three Apps Available
 
-This repository contains two applications:
+This repository contains three applications:
 
 1. **Push-to-Talk Dictation App** (`dictation_app.py`) - System tray app for universal dictation
    - Hold hotkey to record, release to transcribe into any app
+   - Custom dictionary support
    - See main documentation below
 
-2. **Spelling Practice App** (`spelling_practice_app.py`) - GUI app with live transcription
+2. **Live Dictation App** (`live_dictation_app.py`) - ⭐ **NEW!** Continuous dictation with microphone selection
+   - Enable/disable microphone toggle
+   - Live transcription that types directly into Word/Notepad
+   - Choose your microphone from dropdown
+   - See [README_LIVE_DICTATION.md](README_LIVE_DICTATION.md) and [QUICKSTART_LIVE_DICTATION.md](QUICKSTART_LIVE_DICTATION.md)
+
+3. **Spelling Practice App** (`spelling_practice_app.py`) - GUI app with live transcription
    - Visual window with input fields for API key and target word
    - Real-time transcription display with spelling validation
    - See [README_SPELLING_APP.md](README_SPELLING_APP.md) for details
