@@ -524,6 +524,19 @@ class LiveDictationApp:
             # Combine frames
             audio_data = np.concatenate(frames, axis=0)
 
+            # Calculate RMS (Root Mean Square) to detect voice activity
+            rms = np.sqrt(np.mean(audio_data**2))
+
+            # Voice Activity Detection threshold
+            # Typical speech RMS is > 0.01, silence is < 0.005
+            VOICE_THRESHOLD = 0.008
+
+            if rms < VOICE_THRESHOLD:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Silence detected (RMS: {rms:.4f}) - skipping API call")
+                return  # Don't send silence to API!
+
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Voice detected (RMS: {rms:.4f}) - transcribing...")
+
             # Convert to 16-bit PCM
             audio_data = (audio_data * 32767).astype(np.int16)
 
@@ -551,11 +564,44 @@ class LiveDictationApp:
             except:
                 pass
 
-            # Type the transcribed text
+            # Get transcribed text
             transcribed_text = transcript.text.strip()
-            if transcribed_text:
+
+            # Filter out known Whisper hallucinations
+            hallucinations = [
+                "sous-titres réalisés para la communauté d'amara.org",
+                "sous-titres réalisés par la communauté d'amara.org",
+                "merci.",
+                "merci",
+                "thank you.",
+                "thank you",
+                "thanks.",
+                "subtitle by",
+                "subtitles by",
+                ".",
+                "..",
+                "...",
+            ]
+
+            # Check if it's a hallucination (case-insensitive)
+            text_lower = transcribed_text.lower().strip()
+            is_hallucination = False
+
+            for hallucination in hallucinations:
+                if text_lower == hallucination:
+                    is_hallucination = True
+                    break
+
+            if is_hallucination:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Filtered hallucination: '{transcribed_text}'")
+                return  # Don't type hallucinations!
+
+            # Type the transcribed text if it's valid
+            if transcribed_text and len(transcribed_text) > 1:
                 self.type_text(transcribed_text)
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Transcribed: {transcribed_text}")
+            else:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Empty transcription - skipped")
 
         except Exception as e:
             print(f"Transcription error: {e}")
