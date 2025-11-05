@@ -127,9 +127,26 @@ class LiveDictationApp:
         )
         title_label.grid(row=0, column=0, pady=(0, 20))
 
+        # API Key Section - MUST BE AT TOP!
+        api_frame = ttk.LabelFrame(main_frame, text="🔑 OpenAI API Key", padding="15")
+        api_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        api_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(api_frame, text="API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        self.api_key_entry = ttk.Entry(api_frame, width=40, show="*")
+        self.api_key_entry.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+
+        self.save_api_button = ttk.Button(
+            api_frame,
+            text="Save API Key",
+            command=self.save_api_key
+        )
+        self.save_api_button.grid(row=2, column=0, pady=5)
+
         # Cost Display Section
         cost_frame = ttk.LabelFrame(main_frame, text="API Usage Cost", padding="15")
-        cost_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        cost_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         cost_frame.columnconfigure(0, weight=1)
 
         self.cost_label = ttk.Label(
@@ -142,7 +159,7 @@ class LiveDictationApp:
 
         # Price Configuration Section
         price_frame = ttk.LabelFrame(main_frame, text="Price Configuration", padding="15")
-        price_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        price_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         price_frame.columnconfigure(0, weight=1)
 
         ttk.Label(price_frame, text="Price per second (USD):").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -183,7 +200,7 @@ class LiveDictationApp:
 
         # Recording Mode Selection Section
         mode_frame = ttk.LabelFrame(main_frame, text="Recording Mode", padding="15")
-        mode_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        mode_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         mode_frame.columnconfigure(0, weight=1)
 
         ttk.Label(
@@ -221,26 +238,9 @@ class LiveDictationApp:
         )
         # Don't grid it yet, will show when live mode is selected
 
-        # API Key Section
-        api_frame = ttk.LabelFrame(main_frame, text="OpenAI Configuration", padding="15")
-        api_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
-        api_frame.columnconfigure(0, weight=1)
-
-        ttk.Label(api_frame, text="API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
-
-        self.api_key_entry = ttk.Entry(api_frame, width=40, show="*")
-        self.api_key_entry.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
-
-        self.save_api_button = ttk.Button(
-            api_frame,
-            text="Save API Key",
-            command=self.save_api_key
-        )
-        self.save_api_button.grid(row=2, column=0, pady=5)
-
         # Prompt Section (for improving transcription quality)
         prompt_frame = ttk.LabelFrame(main_frame, text="Transcription Quality Prompt (Optional)", padding="15")
-        prompt_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        prompt_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         prompt_frame.columnconfigure(0, weight=1)
 
         ttk.Label(
@@ -279,7 +279,7 @@ class LiveDictationApp:
 
         # Microphone Selection Section
         mic_frame = ttk.LabelFrame(main_frame, text="Microphone Selection", padding="15")
-        mic_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        mic_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         # Store the mode_frame for later use in on_mode_changed
         self.mode_frame = mode_frame
         mic_frame.columnconfigure(0, weight=1)
@@ -299,7 +299,7 @@ class LiveDictationApp:
 
         # Language Selection Section
         lang_frame = ttk.LabelFrame(main_frame, text="Language Selection", padding="15")
-        lang_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        lang_frame.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         lang_frame.columnconfigure(0, weight=1)
 
         ttk.Label(lang_frame, text="Dictation Language:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -329,7 +329,7 @@ class LiveDictationApp:
 
         # Hotkey Configuration Section
         hotkey_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Hotkey", padding="15")
-        hotkey_frame.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        hotkey_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         hotkey_frame.columnconfigure(0, weight=1)
 
         ttk.Label(hotkey_frame, text="Hold this key combination to record:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -360,7 +360,7 @@ class LiveDictationApp:
 
         # Audio Level Meter Section
         level_frame = ttk.LabelFrame(main_frame, text="Microphone Level", padding="15")
-        level_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        level_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         level_frame.columnconfigure(0, weight=1)
 
         ttk.Label(level_frame, text="Check if microphone is working:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -384,7 +384,7 @@ class LiveDictationApp:
 
         # Recording Control Section
         control_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Status", padding="15")
-        control_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        control_frame.grid(row=10, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
 
         # Status indicator
         self.status_label = ttk.Label(
@@ -408,7 +408,7 @@ class LiveDictationApp:
 
         # Instructions
         instructions_frame = ttk.Frame(main_frame)
-        instructions_frame.grid(row=10, column=0, sticky=(tk.W, tk.E))
+        instructions_frame.grid(row=11, column=0, sticky=(tk.W, tk.E))
 
         instructions = (
             "Instructions:\n"
@@ -888,6 +888,33 @@ class LiveDictationApp:
             # Stream is now closed in stop_recording() to prevent race conditions
             pass
 
+    def apply_french_punctuation(self, text):
+        """Apply French punctuation rules (spaces before ; : ? !)"""
+        import re
+
+        if self.selected_language != "fr":
+            return text  # Only apply for French
+
+        # Rule 1: Add space before ; : ? !
+        # Remove existing spaces first to avoid doubles
+        text = re.sub(r'\s*([;:?!])', r' \1', text)
+
+        # Rule 2: Ensure no capital after : unless it's a proper noun (we can't detect that perfectly)
+        # So we'll leave this for now as it's complex
+
+        # Rule 3: French quotes « » with spaces
+        # Replace " with « »
+        text = re.sub(r'"([^"]+)"', r'« \1 »', text)
+
+        # Rule 4: No comma before "et" - remove it if present
+        text = re.sub(r',\s+(et\b)', r' \1', text)
+
+        # Clean up multiple spaces
+        text = re.sub(r'\s+', ' ', text)
+        text = text.strip()
+
+        return text
+
     def clean_filler_words(self, text):
         """Remove filler words and hesitations from text"""
         import re
@@ -1041,6 +1068,9 @@ class LiveDictationApp:
 
             # Clean filler words from transcription
             cleaned_text = self.clean_filler_words(transcribed_text)
+
+            # Apply French punctuation rules if French is selected
+            cleaned_text = self.apply_french_punctuation(cleaned_text)
 
             # Type the cleaned text if it's valid
             if cleaned_text and len(cleaned_text) > 1:
