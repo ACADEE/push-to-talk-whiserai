@@ -1,6 +1,7 @@
 """
 Live Dictation App - Continuous Speech-to-Text with Whisper AI
 Types transcribed text directly into any active application (Word, Notepad, etc.)
+WITH AUDIO LEVEL METER AND START/STOP BUTTON
 """
 
 import tkinter as tk
@@ -17,12 +18,12 @@ from openai import OpenAI
 
 
 class LiveDictationApp:
-    """Main live dictation application with GUI"""
+    """Main live dictation application with GUI and audio level meter"""
 
     def __init__(self, root):
         self.root = root
         self.root.title("Live Dictation - Whisper AI")
-        self.root.geometry("500x400")
+        self.root.geometry("550x500")
         self.root.resizable(False, False)
 
         # Configure style
@@ -38,12 +39,17 @@ class LiveDictationApp:
         self.sample_rate = 16000
         self.stream = None
         self.selected_device = None
+        self.current_audio_level = 0
+        self.level_update_running = False
 
         # Setup GUI
         self.setup_gui()
 
         # Load available audio devices
         self.load_audio_devices()
+
+        # Start audio level monitoring
+        self.start_level_monitoring()
 
     def setup_gui(self):
         """Setup the GUI components"""
@@ -91,6 +97,7 @@ class LiveDictationApp:
 
         self.mic_combo = ttk.Combobox(mic_frame, state="readonly", width=37)
         self.mic_combo.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+        self.mic_combo.bind('<<ComboboxSelected>>', self.on_mic_changed)
 
         refresh_button = ttk.Button(
             mic_frame,
@@ -99,45 +106,69 @@ class LiveDictationApp:
         )
         refresh_button.grid(row=2, column=0, pady=5)
 
+        # Audio Level Meter Section
+        level_frame = ttk.LabelFrame(main_frame, text="Microphone Level", padding="15")
+        level_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        level_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(level_frame, text="Check if microphone is working:").grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        # Audio level progress bar
+        self.level_bar = ttk.Progressbar(
+            level_frame,
+            mode='determinate',
+            maximum=100,
+            length=400
+        )
+        self.level_bar.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+
+        # Level text
+        self.level_label = ttk.Label(
+            level_frame,
+            text="🔇 No input detected",
+            font=('Arial', 9)
+        )
+        self.level_label.grid(row=2, column=0, pady=5)
+
         # Recording Control Section
         control_frame = ttk.LabelFrame(main_frame, text="Dictation Control", padding="15")
-        control_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        control_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
 
         # Status indicator
         self.status_label = ttk.Label(
             control_frame,
-            text="⚪ Microphone Disabled",
+            text="⚪ Stopped",
             font=('Arial', 12, 'bold'),
             foreground="gray"
         )
         self.status_label.grid(row=0, column=0, pady=10)
 
-        # Toggle button
-        self.toggle_button = ttk.Button(
+        # Start/Stop button
+        self.start_stop_button = ttk.Button(
             control_frame,
-            text="🎤 Enable Microphone",
+            text="▶ START DICTATION",
             command=self.toggle_recording,
             width=30
         )
-        self.toggle_button.grid(row=1, column=0, pady=5)
+        self.start_stop_button.grid(row=1, column=0, pady=5)
 
         # Instructions
         instructions_frame = ttk.Frame(main_frame)
-        instructions_frame.grid(row=4, column=0, sticky=(tk.W, tk.E))
+        instructions_frame.grid(row=5, column=0, sticky=(tk.W, tk.E))
 
         instructions = (
             "Instructions:\n"
             "1. Enter your OpenAI API key and click Save\n"
-            "2. Select your microphone from the list\n"
-            "3. Click 'Enable Microphone' to start\n"
+            "2. Select your microphone and check the level meter\n"
+            "3. Click 'START DICTATION' button\n"
             "4. Open Word/Notepad and click where you want text\n"
-            "5. Speak naturally - text appears every ~3 seconds\n"
-            "6. Click 'Disable Microphone' when done"
+            "5. Speak naturally - text appears live every ~3 seconds\n"
+            "6. Click 'STOP DICTATION' when done"
         )
         info_label = ttk.Label(
             instructions_frame,
             text=instructions,
-            wraplength=450,
+            wraplength=500,
             foreground='gray',
             font=('Arial', 9),
             justify=tk.LEFT
@@ -170,6 +201,88 @@ class LiveDictationApp:
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load audio devices: {str(e)}")
+
+    def on_mic_changed(self, event=None):
+        """Handle microphone selection change"""
+        device_selection = self.mic_combo.get()
+        if device_selection and device_selection != "No devices found":
+            try:
+                self.selected_device = int(device_selection.split(':')[0])
+                # Restart level monitoring with new device
+                self.start_level_monitoring()
+            except:
+                pass
+
+    def start_level_monitoring(self):
+        """Start monitoring audio levels"""
+        if not self.level_update_running:
+            self.level_update_running = True
+            self.update_audio_level()
+
+    def update_audio_level(self):
+        """Update audio level meter continuously"""
+        if not self.level_update_running:
+            return
+
+        try:
+            # Only monitor if not recording (to avoid conflicts)
+            if not self.is_recording and self.selected_device is not None:
+                # Record a very short sample to check level
+                duration = 0.1  # 100ms
+                try:
+                    audio = sd.rec(
+                        int(duration * self.sample_rate),
+                        samplerate=self.sample_rate,
+                        channels=1,
+                        device=self.selected_device,
+                        dtype=np.float32
+                    )
+                    sd.wait()
+
+                    # Calculate RMS (Root Mean Square) level
+                    rms = np.sqrt(np.mean(audio**2))
+
+                    # Convert to percentage (0-100)
+                    # Typical speech is around 0.01-0.3 RMS
+                    level_percent = min(100, int(rms * 300))
+
+                    # Update progress bar
+                    self.level_bar['value'] = level_percent
+
+                    # Update label
+                    if level_percent > 30:
+                        self.level_label.config(
+                            text=f"🔊 Good level ({level_percent}%)",
+                            foreground="green"
+                        )
+                    elif level_percent > 10:
+                        self.level_label.config(
+                            text=f"🔉 Moderate level ({level_percent}%)",
+                            foreground="orange"
+                        )
+                    elif level_percent > 0:
+                        self.level_label.config(
+                            text=f"🔈 Low level ({level_percent}%)",
+                            foreground="gray"
+                        )
+                    else:
+                        self.level_label.config(
+                            text="🔇 No input detected",
+                            foreground="gray"
+                        )
+                except:
+                    # Ignore errors during level monitoring
+                    pass
+
+        except Exception as e:
+            print(f"Level monitoring error: {e}")
+
+        # Schedule next update (only if not recording)
+        if not self.is_recording:
+            self.root.after(100, self.update_audio_level)
+        else:
+            # Re-enable after recording stops
+            self.root.after(500, self.update_audio_level)
 
     def save_api_key(self):
         """Save and validate API key"""
@@ -226,18 +339,19 @@ class LiveDictationApp:
         self.audio_frames = []
 
         # Update UI
-        self.toggle_button.config(text="🔴 Disable Microphone")
+        self.start_stop_button.config(text="⏹ STOP DICTATION")
         self.status_label.config(text="🔴 Recording - Speak Now!", foreground="red")
         self.mic_combo.config(state="disabled")
         self.save_api_button.config(state="disabled")
+        self.level_bar['value'] = 0
 
         # Show instruction
         messagebox.showinfo(
             "Dictation Started",
-            "Microphone is now active!\n\n"
-            "Click on your Word/Notepad document and start speaking.\n"
-            "Text will appear automatically every ~3 seconds.\n\n"
-            "Click 'Disable Microphone' when done."
+            "Microphone is now RECORDING!\n\n"
+            "📝 Click on your Word/Notepad document and start speaking.\n"
+            "✅ Text will appear automatically every ~3 seconds.\n"
+            "⏹ Click 'STOP DICTATION' when done."
         )
 
         # Start recording thread
@@ -251,6 +365,20 @@ class LiveDictationApp:
                 print(f"Audio status: {status}")
             if self.is_recording:
                 self.audio_frames.append(indata.copy())
+
+                # Update level bar during recording
+                try:
+                    rms = np.sqrt(np.mean(indata**2))
+                    level_percent = min(100, int(rms * 300))
+                    self.root.after(0, lambda: self.level_bar.config(value=level_percent))
+
+                    if level_percent > 10:
+                        self.root.after(0, lambda: self.level_label.config(
+                            text=f"🔴 Recording... ({level_percent}%)",
+                            foreground="red"
+                        ))
+                except:
+                    pass
 
         try:
             # Start audio stream with selected device
@@ -276,8 +404,12 @@ class LiveDictationApp:
                     current_frames = self.audio_frames.copy()
                     self.audio_frames = []  # Clear for next chunk
 
-                    # Process this chunk
-                    self.process_audio_chunk(current_frames)
+                    # Process this chunk in a separate thread to avoid blocking
+                    threading.Thread(
+                        target=self.process_audio_chunk,
+                        args=(current_frames,),
+                        daemon=True
+                    ).start()
 
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror(
@@ -327,7 +459,7 @@ class LiveDictationApp:
             transcribed_text = transcript.text.strip()
             if transcribed_text:
                 self.type_text(transcribed_text)
-                print(f"Transcribed: {transcribed_text}")
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Transcribed: {transcribed_text}")
 
         except Exception as e:
             print(f"Transcription error: {e}")
@@ -352,13 +484,19 @@ class LiveDictationApp:
         self.is_recording = False
 
         # Update UI
-        self.toggle_button.config(text="🎤 Enable Microphone")
-        self.status_label.config(text="⚪ Microphone Disabled", foreground="gray")
+        self.start_stop_button.config(text="▶ START DICTATION")
+        self.status_label.config(text="⚪ Stopped", foreground="gray")
         self.mic_combo.config(state="readonly")
         self.save_api_button.config(state="normal")
+        self.level_bar['value'] = 0
+        self.level_label.config(text="🔇 No input detected", foreground="gray")
+
+        # Restart level monitoring
+        self.start_level_monitoring()
 
     def on_closing(self):
         """Handle window closing"""
+        self.level_update_running = False
         if self.is_recording:
             self.stop_recording()
         self.root.destroy()
