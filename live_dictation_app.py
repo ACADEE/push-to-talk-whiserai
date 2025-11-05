@@ -53,6 +53,7 @@ class LiveDictationApp:
         self.selected_language = "fr"  # Default: French
         self.hotkey_combination = "ctrl+shift"  # Default hotkey
         self.hotkey_hook = None  # Store the hotkey hook
+        self.release_hook = None  # Store the release hook
         self.recording_mode = "push-to-talk"  # "push-to-talk" or "live"
         self.live_recording_enabled = False  # For live mode
 
@@ -125,11 +126,25 @@ class LiveDictationApp:
             text="Live Dictation App",
             font=('Arial', 18, 'bold')
         )
-        title_label.grid(row=0, column=0, pady=(0, 20))
+        title_label.grid(row=0, column=0, pady=(0, 10))
 
-        # API Key Section - MUST BE AT TOP!
+        # ⭐ STATUS SECTION - AT THE TOP FOR VISIBILITY!
+        status_frame = ttk.LabelFrame(main_frame, text="📊 Status", padding="15")
+        status_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        status_frame.columnconfigure(0, weight=1)
+
+        # Status indicator (big and visible)
+        self.status_label = ttk.Label(
+            status_frame,
+            text="⚪ Ready - Hold hotkey to start",
+            font=('Arial', 13, 'bold'),
+            foreground="gray"
+        )
+        self.status_label.grid(row=0, column=0, pady=10)
+
+        # API Key Section
         api_frame = ttk.LabelFrame(main_frame, text="🔑 OpenAI API Key", padding="15")
-        api_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        api_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         api_frame.columnconfigure(0, weight=1)
 
         ttk.Label(api_frame, text="API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -146,7 +161,7 @@ class LiveDictationApp:
 
         # Cost Display Section
         cost_frame = ttk.LabelFrame(main_frame, text="API Usage Cost", padding="15")
-        cost_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        cost_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         cost_frame.columnconfigure(0, weight=1)
 
         self.cost_label = ttk.Label(
@@ -159,7 +174,7 @@ class LiveDictationApp:
 
         # Price Configuration Section
         price_frame = ttk.LabelFrame(main_frame, text="Price Configuration", padding="15")
-        price_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        price_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         price_frame.columnconfigure(0, weight=1)
 
         ttk.Label(price_frame, text="Price per second (USD):").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -200,7 +215,7 @@ class LiveDictationApp:
 
         # Recording Mode Selection Section
         mode_frame = ttk.LabelFrame(main_frame, text="Recording Mode", padding="15")
-        mode_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        mode_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         mode_frame.columnconfigure(0, weight=1)
 
         ttk.Label(
@@ -240,7 +255,7 @@ class LiveDictationApp:
 
         # Prompt Section (for improving transcription quality)
         prompt_frame = ttk.LabelFrame(main_frame, text="Transcription Quality Prompt (Optional)", padding="15")
-        prompt_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        prompt_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         prompt_frame.columnconfigure(0, weight=1)
 
         ttk.Label(
@@ -279,7 +294,7 @@ class LiveDictationApp:
 
         # Microphone Selection Section
         mic_frame = ttk.LabelFrame(main_frame, text="Microphone Selection", padding="15")
-        mic_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        mic_frame.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         # Store the mode_frame for later use in on_mode_changed
         self.mode_frame = mode_frame
         mic_frame.columnconfigure(0, weight=1)
@@ -299,7 +314,7 @@ class LiveDictationApp:
 
         # Language Selection Section
         lang_frame = ttk.LabelFrame(main_frame, text="Language Selection", padding="15")
-        lang_frame.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        lang_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         lang_frame.columnconfigure(0, weight=1)
 
         ttk.Label(lang_frame, text="Dictation Language:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -329,7 +344,7 @@ class LiveDictationApp:
 
         # Hotkey Configuration Section
         hotkey_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Hotkey", padding="15")
-        hotkey_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        hotkey_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         hotkey_frame.columnconfigure(0, weight=1)
 
         ttk.Label(hotkey_frame, text="Hold this key combination to record:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -360,7 +375,7 @@ class LiveDictationApp:
 
         # Audio Level Meter Section
         level_frame = ttk.LabelFrame(main_frame, text="Microphone Level", padding="15")
-        level_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        level_frame.grid(row=10, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         level_frame.columnconfigure(0, weight=1)
 
         ttk.Label(level_frame, text="Check if microphone is working:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -381,30 +396,6 @@ class LiveDictationApp:
             font=('Arial', 9)
         )
         self.level_label.grid(row=2, column=0, pady=5)
-
-        # Recording Control Section
-        control_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Status", padding="15")
-        control_frame.grid(row=10, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
-
-        # Status indicator
-        self.status_label = ttk.Label(
-            control_frame,
-            text="⚪ Ready - Hold hotkey to start",
-            font=('Arial', 11, 'bold'),
-            foreground="gray"
-        )
-        self.status_label.grid(row=0, column=0, pady=10)
-
-        # Instruction label
-        instruction_text = "Press and HOLD your hotkey, then speak.\nRelease the hotkey when done."
-        instruction_label = ttk.Label(
-            control_frame,
-            text=instruction_text,
-            font=('Arial', 9),
-            foreground='blue',
-            justify=tk.CENTER
-        )
-        instruction_label.grid(row=1, column=0, pady=5)
 
         # Instructions
         instructions_frame = ttk.Frame(main_frame)
@@ -749,8 +740,11 @@ class LiveDictationApp:
     def register_hotkey(self):
         """Register the push-to-talk hotkey"""
         try:
-            # Unregister any existing hotkey first
+            # Unregister any existing hotkey first (prevents stacking)
             self.unregister_hotkey()
+
+            # Reset state to ensure clean start
+            self.is_hotkey_active = False
 
             # Use add_hotkey for combination press detection
             # The callback is triggered when all keys in the combination are pressed
@@ -762,7 +756,7 @@ class LiveDictationApp:
 
             # Set up release detection for when user releases the keys
             # This monitors all key releases
-            keyboard.on_release(self.on_any_key_release)
+            self.release_hook = keyboard.on_release(self.on_any_key_release)
 
         except Exception as e:
             pass  # Silently handle errors
@@ -770,10 +764,16 @@ class LiveDictationApp:
     def unregister_hotkey(self):
         """Unregister the current hotkey"""
         try:
+            # Remove the hotkey hook
             if self.hotkey_hook is not None:
                 keyboard.remove_hotkey(self.hotkey_hook)
                 self.hotkey_hook = None
-            # Note: we don't unhook_all() as that would remove the release listener too
+
+            # Remove the release hook to prevent stacking
+            if self.release_hook is not None:
+                keyboard.unhook(self.release_hook)
+                self.release_hook = None
+
         except Exception as e:
             pass  # Silently handle errors
 
@@ -1204,6 +1204,7 @@ class LiveDictationApp:
             return  # Already stopped
 
         self.is_recording = False
+        self.is_hotkey_active = False  # CRITICAL: Reset hotkey state
 
         # Close the stream immediately to prevent race conditions
         import time
@@ -1212,9 +1213,10 @@ class LiveDictationApp:
                 self.stream.stop()
                 self.stream.close()
                 self.stream = None
-            except:
-                pass
-            time.sleep(0.1)  # Small delay to ensure stream is fully closed
+            except Exception as e:
+                # If stream close fails, force it to None anyway
+                self.stream = None
+            time.sleep(0.15)  # Increased delay to ensure stream is fully closed
 
         # Update UI
         self.status_label.config(text="⏳ Processing...", foreground="orange")
