@@ -174,7 +174,6 @@ class LiveDictationApp:
         def on_language_changed(event=None):
             selected = self.language_combo.get()
             self.selected_language = self.language_codes[selected]
-            print(f"Language changed to: {selected} ({self.selected_language})")
 
         self.language_combo.bind('<<ComboboxSelected>>', on_language_changed)
 
@@ -348,7 +347,7 @@ class LiveDictationApp:
                     pass
 
         except Exception as e:
-            print(f"Level monitoring error: {e}")
+            pass  # Silently handle errors
 
         # Schedule next update (only if not recording)
         if not self.is_recording:
@@ -371,9 +370,8 @@ class LiveDictationApp:
                         # Auto-initialize the client
                         self.api_key = saved_key
                         self.client = OpenAI(api_key=self.api_key)
-                        print("API key loaded from file")
         except Exception as e:
-            print(f"Error loading API key: {e}")
+            pass  # Silently handle errors
 
     def save_api_key(self):
         """Save and validate API key"""
@@ -457,8 +455,6 @@ class LiveDictationApp:
     def record_audio(self):
         """Record audio in chunks and transcribe continuously"""
         def audio_callback(indata, frames, time, status):
-            if status:
-                print(f"Audio status: {status}")
             if self.is_recording:
                 self.audio_frames.append(indata.copy())
 
@@ -518,6 +514,53 @@ class LiveDictationApp:
                 self.stream.stop()
                 self.stream.close()
 
+    def clean_filler_words(self, text):
+        """Remove filler words and hesitations from text"""
+        import re
+
+        # List of filler words in multiple languages
+        filler_words = [
+            # French
+            r'\beuh+\b', r'\beuuuh+\b', r'\beu+h+\b',
+            r'\bhumm+\b', r'\bhmm+\b', r'\bhum+\b',
+            r'\bbah\b', r'\bben\b', r'\bbox\b',
+            r'\bbref\b', r'\bvoilà\b', r'\bquoi\b',
+            r'\balors\b', r'\bdonc\b', r'\ben fait\b',
+            r'\btu vois\b', r'\bvous voyez\b',
+
+            # English
+            r'\buh+\b', r'\buhh+\b', r'\buhm+\b',
+            r'\bum+\b', r'\bumm+\b', r'\buhmm+\b',
+            r'\ber+\b', r'\buhh+\b', r'\bahh+\b',
+            r'\byou know\b', r'\blike\b', r'\bwell\b',
+            r'\bso\b', r'\banyway\b', r'\bi mean\b',
+
+            # German
+            r'\bäh+\b', r'\böh+\b', r'\bahm+\b',
+            r'\bähm+\b', r'\böhm+\b',
+
+            # Spanish
+            r'\beh+\b', r'\bemm+\b', r'\bpues\b',
+
+            # Italian
+            r'\beh+\b', r'\behm+\b', r'\bmah\b',
+        ]
+
+        # Apply each filter
+        cleaned_text = text
+        for pattern in filler_words:
+            # Remove with word boundaries, case insensitive
+            cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
+
+        # Clean up extra spaces
+        cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+        cleaned_text = cleaned_text.strip()
+
+        # Fix punctuation spacing (remove space before punctuation)
+        cleaned_text = re.sub(r'\s+([.,!?;:])', r'\1', cleaned_text)
+
+        return cleaned_text
+
     def process_audio_chunk(self, frames):
         """Process and transcribe an audio chunk"""
         try:
@@ -528,14 +571,10 @@ class LiveDictationApp:
             rms = np.sqrt(np.mean(audio_data**2))
 
             # Voice Activity Detection threshold
-            # Typical speech RMS is > 0.01, silence is < 0.005
             VOICE_THRESHOLD = 0.008
 
             if rms < VOICE_THRESHOLD:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Silence detected (RMS: {rms:.4f}) - skipping API call")
                 return  # Don't send silence to API!
-
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Voice detected (RMS: {rms:.4f}) - transcribing...")
 
             # Convert to 16-bit PCM
             audio_data = (audio_data * 32767).astype(np.int16)
@@ -585,27 +624,20 @@ class LiveDictationApp:
 
             # Check if it's a hallucination (case-insensitive)
             text_lower = transcribed_text.lower().strip()
-            is_hallucination = False
-
-            for hallucination in hallucinations:
-                if text_lower == hallucination:
-                    is_hallucination = True
-                    break
+            is_hallucination = any(text_lower == h for h in hallucinations)
 
             if is_hallucination:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Filtered hallucination: '{transcribed_text}'")
                 return  # Don't type hallucinations!
 
-            # Type the transcribed text if it's valid
-            if transcribed_text and len(transcribed_text) > 1:
-                self.type_text(transcribed_text)
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Transcribed: {transcribed_text}")
-            else:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Empty transcription - skipped")
+            # Clean filler words from transcription
+            cleaned_text = self.clean_filler_words(transcribed_text)
+
+            # Type the cleaned text if it's valid
+            if cleaned_text and len(cleaned_text) > 1:
+                self.type_text(cleaned_text)
 
         except Exception as e:
-            print(f"Transcription error: {e}")
-            # Continue recording even if one chunk fails
+            pass  # Silently continue on errors
 
     def type_text(self, text):
         """Type transcribed text into the active window using clipboard"""
@@ -641,7 +673,7 @@ class LiveDictationApp:
                 pass
 
         except Exception as e:
-            print(f"Error typing text: {e}")
+            pass  # Silently handle errors
 
     def stop_recording(self):
         """Stop recording"""
