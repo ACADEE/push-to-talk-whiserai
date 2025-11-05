@@ -53,6 +53,8 @@ class LiveDictationApp:
         self.selected_language = "fr"  # Default: French
         self.hotkey_combination = "ctrl+shift"  # Default hotkey
         self.hotkey_hook = None  # Store the hotkey hook
+        self.recording_mode = "push-to-talk"  # "push-to-talk" or "live"
+        self.live_recording_enabled = False  # For live mode
 
         # Cost tracking variables
         self.total_cost = 0.0
@@ -179,9 +181,49 @@ class LiveDictationApp:
             foreground='gray'
         ).grid(row=3, column=0, pady=5)
 
+        # Recording Mode Selection Section
+        mode_frame = ttk.LabelFrame(main_frame, text="Recording Mode", padding="15")
+        mode_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        mode_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            mode_frame,
+            text="Choose your recording method:",
+            font=('Arial', 9)
+        ).grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
+
+        # Mode selection with radio buttons
+        self.mode_var = tk.StringVar(value="push-to-talk")
+
+        push_to_talk_radio = ttk.Radiobutton(
+            mode_frame,
+            text="🎯 Push-to-Talk (Hold hotkey to record)",
+            variable=self.mode_var,
+            value="push-to-talk",
+            command=self.on_mode_changed
+        )
+        push_to_talk_radio.grid(row=1, column=0, sticky=tk.W, pady=5)
+
+        live_radio = ttk.Radiobutton(
+            mode_frame,
+            text="🔴 Live Mode (Always listening, API only when speaking)",
+            variable=self.mode_var,
+            value="live",
+            command=self.on_mode_changed
+        )
+        live_radio.grid(row=2, column=0, sticky=tk.W, pady=5)
+
+        # Start/Stop button for live mode (initially hidden)
+        self.live_control_button = ttk.Button(
+            mode_frame,
+            text="▶ START LIVE MODE",
+            command=self.toggle_live_mode
+        )
+        # Don't grid it yet, will show when live mode is selected
+
         # API Key Section
         api_frame = ttk.LabelFrame(main_frame, text="OpenAI Configuration", padding="15")
-        api_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        api_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         api_frame.columnconfigure(0, weight=1)
 
         ttk.Label(api_frame, text="API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -238,6 +280,8 @@ class LiveDictationApp:
         # Microphone Selection Section
         mic_frame = ttk.LabelFrame(main_frame, text="Microphone Selection", padding="15")
         mic_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        # Store the mode_frame for later use in on_mode_changed
+        self.mode_frame = mode_frame
         mic_frame.columnconfigure(0, weight=1)
 
         ttk.Label(mic_frame, text="Select Microphone:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -462,6 +506,128 @@ class LiveDictationApp:
                 self.start_level_monitoring()
             except:
                 pass
+
+    def on_mode_changed(self):
+        """Handle recording mode change"""
+        self.recording_mode = self.mode_var.get()
+
+        if self.recording_mode == "live":
+            # Show the start/stop button for live mode
+            self.live_control_button.grid(row=3, column=0, pady=10)
+            # Update status
+            if not self.live_recording_enabled:
+                self.status_label.config(
+                    text="⚪ Click START to begin live mode",
+                    foreground="gray"
+                )
+        else:
+            # Hide the live mode button
+            self.live_control_button.grid_forget()
+            # Update status for push-to-talk
+            self.status_label.config(
+                text="⚪ Ready - Hold hotkey to start",
+                foreground="gray"
+            )
+            # Stop live recording if it was active
+            if self.live_recording_enabled:
+                self.toggle_live_mode()
+
+    def toggle_live_mode(self):
+        """Start or stop live recording mode"""
+        if not self.live_recording_enabled:
+            # Start live mode
+            if not self.client:
+                messagebox.showerror("Error", "Please enter and save your API key first")
+                return
+
+            self.live_recording_enabled = True
+            self.live_control_button.config(text="⏹ STOP LIVE MODE")
+            self.status_label.config(text="🟢 Live Mode Active - Speak anytime", foreground="green")
+
+            # Start live recording thread
+            self.start_live_recording()
+        else:
+            # Stop live mode
+            self.live_recording_enabled = False
+            self.live_control_button.config(text="▶ START LIVE MODE")
+            self.status_label.config(text="⚪ Click START to begin live mode", foreground="gray")
+            self.stop_recording()
+
+    def start_live_recording(self):
+        """Start live recording with VAD"""
+        if not self.client:
+            return
+
+        device_selection = self.mic_combo.get()
+        if not device_selection or device_selection == "No devices found":
+            return
+
+        try:
+            self.selected_device = int(device_selection.split(':')[0])
+        except:
+            return
+
+        self.is_recording = True
+        self.audio_frames = []
+
+        # Start recording thread for live mode
+        self.recording_thread = threading.Thread(target=self.record_live_audio, daemon=True)
+        self.recording_thread.start()
+
+    def record_live_audio(self):
+        """Record audio continuously in live mode, processing chunks with VAD"""
+        def audio_callback(indata, frames, time, status):
+            if self.is_recording and self.live_recording_enabled:
+                self.audio_frames.append(indata.copy())
+
+                # Update level bar
+                try:
+                    rms = np.sqrt(np.mean(indata**2))
+                    level_percent = min(100, int(rms * 300))
+                    self.root.after(0, lambda: self.level_bar.config(value=level_percent))
+
+                    if level_percent > 10:
+                        self.root.after(0, lambda: self.level_label.config(
+                            text=f"🟢 Listening... ({level_percent}%)",
+                            foreground="green"
+                        ))
+                except:
+                    pass
+
+        try:
+            self.stream = sd.InputStream(
+                device=self.selected_device,
+                samplerate=self.sample_rate,
+                channels=1,
+                callback=audio_callback,
+                dtype=np.float32
+            )
+            self.stream.start()
+
+            # Process audio in 3-second chunks
+            chunk_duration = 3.0
+            import time
+
+            while self.is_recording and self.live_recording_enabled:
+                time.sleep(chunk_duration)
+
+                if len(self.audio_frames) > 0:
+                    # Get current chunk
+                    current_frames = self.audio_frames.copy()
+                    self.audio_frames = []
+
+                    # Process this chunk in a separate thread (with VAD)
+                    threading.Thread(
+                        target=self.process_audio_chunk,
+                        args=(current_frames,),
+                        daemon=True
+                    ).start()
+
+        except Exception as e:
+            pass
+        finally:
+            # Stream closing handled in stop_recording()
+            pass
 
     def start_level_monitoring(self):
         """Start monitoring audio levels"""
