@@ -273,18 +273,24 @@ class LiveDictationApp:
             wraplength=500
         ).grid(row=1, column=0, sticky=tk.W, pady=5)
 
+        # Create a frame for the text widget and scrollbar
+        prompt_input_frame = ttk.Frame(prompt_frame)
+        prompt_input_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        prompt_input_frame.columnconfigure(0, weight=1)
+
         # Create a Text widget for multi-line prompt input
         self.prompt_text_widget = tk.Text(
-            prompt_frame,
+            prompt_input_frame,
             height=3,
             width=60,
             wrap=tk.WORD,
             font=('Arial', 9)
         )
-        self.prompt_text_widget.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        self.prompt_text_widget.grid(row=0, column=0, sticky=(tk.W, tk.E))
 
-        # Scrollbar for the text widget
-        prompt_scrollbar = ttk.Scrollbar(prompt_frame, orient="vertical", command=self.prompt_text_widget.yview)
+        # Scrollbar for the text widget (now properly gridded!)
+        prompt_scrollbar = ttk.Scrollbar(prompt_input_frame, orient="vertical", command=self.prompt_text_widget.yview)
+        prompt_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         self.prompt_text_widget.configure(yscrollcommand=prompt_scrollbar.set)
 
         def update_prompt():
@@ -312,18 +318,24 @@ class LiveDictationApp:
             wraplength=500
         ).grid(row=1, column=0, sticky=tk.W, pady=5)
 
+        # Create a frame for the text widget and scrollbar
+        replacements_input_frame = ttk.Frame(replacements_frame)
+        replacements_input_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        replacements_input_frame.columnconfigure(0, weight=1)
+
         # Create a Text widget for multi-line replacement rules
         self.replacements_text_widget = tk.Text(
-            replacements_frame,
+            replacements_input_frame,
             height=4,
             width=60,
             wrap=tk.WORD,
             font=('Arial', 9)
         )
-        self.replacements_text_widget.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        self.replacements_text_widget.grid(row=0, column=0, sticky=(tk.W, tk.E))
 
-        # Scrollbar for the text widget
-        replacements_scrollbar = ttk.Scrollbar(replacements_frame, orient="vertical", command=self.replacements_text_widget.yview)
+        # Scrollbar for the text widget (now properly gridded!)
+        replacements_scrollbar = ttk.Scrollbar(replacements_input_frame, orient="vertical", command=self.replacements_text_widget.yview)
+        replacements_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         self.replacements_text_widget.configure(yscrollcommand=replacements_scrollbar.set)
 
         def update_replacements():
@@ -941,6 +953,133 @@ class LiveDictationApp:
             # Stream is now closed in stop_recording() to prevent race conditions
             pass
 
+    def apply_verbal_punctuation(self, text):
+        """Convert verbal punctuation commands to actual punctuation marks"""
+        import re
+
+        # Define verbal punctuation commands for each language
+        if self.selected_language == "fr":
+            # French punctuation commands
+            replacements = [
+                # Points and basic punctuation
+                (r'\b(point|point final)\b', '.'),
+                (r'\b(virgule)\b', ','),
+                (r'\b(point virgule)\b', ';'),
+                (r'\b(deux points)\b', ':'),
+                (r'\b(point d\'interrogation|point interrogation)\b', '?'),
+                (r'\b(point d\'exclamation|point exclamation)\b', '!'),
+                (r'\b(points de suspension)\b', '...'),
+
+                # Quotes
+                (r'\b(ouvrez les guillemets|ouvre guillemets|guillemet ouvrant)\b', '«'),
+                (r'\b(fermez les guillemets|ferme guillemets|guillemet fermant)\b', '»'),
+
+                # Parentheses and brackets
+                (r'\b(ouvrez la parenthèse|ouvre parenthèse|parenthèse ouvrante)\b', '('),
+                (r'\b(fermez la parenthèse|ferme parenthèse|parenthèse fermante)\b', ')'),
+                (r'\b(ouvrez le crochet|ouvre crochet|crochet ouvrant)\b', '['),
+                (r'\b(fermez le crochet|ferme crochet|crochet fermant)\b', ']'),
+
+                # Other symbols
+                (r'\b(tiret)\b', '-'),
+                (r'\b(trait d\'union)\b', '-'),
+                (r'\b(apostrophe)\b', '\''),
+                (r'\b(à la ligne|nouvelle ligne|retour à la ligne)\b', '\n'),
+                (r'\b(arobase|arrobase)\b', '@'),
+                (r'\b(dièse|hashtag)\b', '#'),
+                (r'\b(pourcent)\b', '%'),
+                (r'\b(et commercial)\b', '&'),
+                (r'\b(slash|barre oblique)\b', '/'),
+                (r'\b(antislash|barre oblique inversée)\b', '\\'),
+            ]
+
+        elif self.selected_language == "en":
+            # English punctuation commands
+            replacements = [
+                # Points and basic punctuation
+                (r'\b(period|full stop|dot)\b', '.'),
+                (r'\b(comma)\b', ','),
+                (r'\b(semicolon)\b', ';'),
+                (r'\b(colon)\b', ':'),
+                (r'\b(question mark)\b', '?'),
+                (r'\b(exclamation mark|exclamation point)\b', '!'),
+                (r'\b(ellipsis|dot dot dot)\b', '...'),
+
+                # Quotes
+                (r'\b(open quote|open quotes|opening quote)\b', '"'),
+                (r'\b(close quote|close quotes|closing quote)\b', '"'),
+                (r'\b(single quote)\b', '\''),
+
+                # Parentheses and brackets
+                (r'\b(open parenthesis|open paren|left paren)\b', '('),
+                (r'\b(close parenthesis|close paren|right paren)\b', ')'),
+                (r'\b(open bracket|left bracket)\b', '['),
+                (r'\b(close bracket|right bracket)\b', ']'),
+
+                # Other symbols
+                (r'\b(dash|hyphen)\b', '-'),
+                (r'\b(apostrophe)\b', '\''),
+                (r'\b(new line|line break)\b', '\n'),
+                (r'\b(at sign|at symbol)\b', '@'),
+                (r'\b(hashtag|pound sign)\b', '#'),
+                (r'\b(percent|percent sign)\b', '%'),
+                (r'\b(ampersand|and sign)\b', '&'),
+                (r'\b(slash|forward slash)\b', '/'),
+                (r'\b(backslash)\b', '\\'),
+            ]
+
+        elif self.selected_language == "de":
+            # German punctuation commands
+            replacements = [
+                (r'\b(punkt)\b', '.'),
+                (r'\b(komma)\b', ','),
+                (r'\b(semikolon)\b', ';'),
+                (r'\b(doppelpunkt)\b', ':'),
+                (r'\b(fragezeichen)\b', '?'),
+                (r'\b(ausrufezeichen)\b', '!'),
+                (r'\b(auslassungspunkte)\b', '...'),
+                (r'\b(anführungszeichen auf|öffnendes anführungszeichen)\b', '„'),
+                (r'\b(anführungszeichen zu|schließendes anführungszeichen)\b', '"'),
+            ]
+
+        elif self.selected_language == "es":
+            # Spanish punctuation commands
+            replacements = [
+                (r'\b(punto|punto final)\b', '.'),
+                (r'\b(coma)\b', ','),
+                (r'\b(punto y coma)\b', ';'),
+                (r'\b(dos puntos)\b', ':'),
+                (r'\b(signo de interrogación)\b', '?'),
+                (r'\b(signo de exclamación)\b', '!'),
+                (r'\b(puntos suspensivos)\b', '...'),
+                (r'\b(abrir comillas|comillas de apertura)\b', '«'),
+                (r'\b(cerrar comillas|comillas de cierre)\b', '»'),
+            ]
+
+        elif self.selected_language == "it":
+            # Italian punctuation commands
+            replacements = [
+                (r'\b(punto)\b', '.'),
+                (r'\b(virgola)\b', ','),
+                (r'\b(punto e virgola)\b', ';'),
+                (r'\b(due punti)\b', ':'),
+                (r'\b(punto interrogativo)\b', '?'),
+                (r'\b(punto esclamativo)\b', '!'),
+                (r'\b(puntini di sospensione)\b', '...'),
+                (r'\b(apri virgolette|virgolette aperte)\b', '«'),
+                (r'\b(chiudi virgolette|virgolette chiuse)\b', '»'),
+            ]
+
+        else:
+            # Default: no verbal punctuation conversion
+            return text
+
+        # Apply all replacements (case-insensitive)
+        for pattern, replacement in replacements:
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
+        return text
+
     def apply_custom_replacements(self, text):
         """Apply user-defined custom word replacements"""
         if not self.custom_replacements:
@@ -957,29 +1096,67 @@ class LiveDictationApp:
 
         return text
 
+    def apply_english_punctuation(self, text):
+        """Apply English punctuation rules (no spaces before punctuation)"""
+        import re
+
+        # Rule 1: Remove spaces before punctuation marks
+        text = re.sub(r'\s+([,.;:?!])', r'\1', text)
+
+        # Rule 2: Ensure one space after punctuation (except at end)
+        text = re.sub(r'([,.;:?!])(?!\s|$)', r'\1 ', text)
+
+        # Rule 3: English quotes "text" without spaces inside
+        text = re.sub(r'"\s+([^"]+)\s+"', r'"\1"', text)
+
+        # Rule 4: Oxford comma is typically used before "and" in lists
+        # (We won't auto-add it as it depends on context)
+
+        # Clean up multiple spaces
+        text = re.sub(r'\s+', ' ', text)
+        text = text.strip()
+
+        return text
+
     def apply_french_punctuation(self, text):
-        """Apply French punctuation rules (spaces before ; : ? !)"""
+        """Apply French punctuation rules with non-breaking spaces"""
         import re
 
         if self.selected_language != "fr":
             return text  # Only apply for French
 
-        # Rule 1: Add space before ; : ? !
-        # Remove existing spaces first to avoid doubles
-        text = re.sub(r'\s*([;:?!])', r' \1', text)
+        # French uses non-breaking space (U+00A0) before double punctuation
+        nbsp = '\u00A0'  # Non-breaking space
 
-        # Rule 2: Ensure no capital after : unless it's a proper noun (we can't detect that perfectly)
-        # So we'll leave this for now as it's complex
+        # Rule 1: Add non-breaking space before ; : ? !
+        # This creates proper French typography with insecable spaces
+        text = re.sub(r'\s*;', nbsp + ';', text)
+        text = re.sub(r'\s*:', nbsp + ':', text)
+        text = re.sub(r'\s*\?', nbsp + '?', text)
+        text = re.sub(r'\s*!', nbsp + '!', text)
 
-        # Rule 3: French quotes « » with spaces
-        # Replace " with « »
-        text = re.sub(r'"([^"]+)"', r'« \1 »', text)
+        # Rule 2: French quotes « » with fine spaces
+        # Fine space (U+202F) is the proper typographic space for guillemets
+        thin_space = '\u202F'  # Thin non-breaking space
 
-        # Rule 4: No comma before "et" - remove it if present
+        # If we find regular quotes, convert to French guillemets
+        text = re.sub(r'"([^"]+)"', r'«' + thin_space + r'\1' + thin_space + r'»', text)
+
+        # Clean up any existing guillemets to ensure proper spacing
+        text = re.sub(r'«\s*', '«' + thin_space, text)
+        text = re.sub(r'\s*»', thin_space + '»', text)
+
+        # Rule 3: No comma before "et" in French enumerations
         text = re.sub(r',\s+(et\b)', r' \1', text)
 
-        # Clean up multiple spaces
-        text = re.sub(r'\s+', ' ', text)
+        # Rule 4: Lowercase after colon (unless proper noun - we can't detect perfectly)
+        # We'll skip this as it requires NLP to detect proper nouns
+
+        # Rule 5: Ensure space after punctuation (normal space, not nbsp)
+        text = re.sub(r'([.,:;?!])(?=[^\s])', r'\1 ', text)
+
+        # Clean up multiple normal spaces (but preserve nbsp)
+        text = re.sub(r'  +', ' ', text)  # Only replace multiple normal spaces
         text = text.strip()
 
         return text
@@ -1135,14 +1312,26 @@ class LiveDictationApp:
                     ))
                 return  # Don't type hallucinations!
 
-            # Clean filler words from transcription
+            # Text processing pipeline (order matters!)
+
+            # Step 1: Clean filler words from transcription
             cleaned_text = self.clean_filler_words(transcribed_text)
 
-            # Apply custom word replacements (e.g., "Acadie" -> "ACADEE")
+            # Step 2: Convert verbal punctuation commands to symbols
+            # "deux points" → ":" or "period" → "."
+            cleaned_text = self.apply_verbal_punctuation(cleaned_text)
+
+            # Step 3: Apply custom word replacements (e.g., "Acadie" -> "ACADEE")
             cleaned_text = self.apply_custom_replacements(cleaned_text)
 
-            # Apply French punctuation rules if French is selected
-            cleaned_text = self.apply_french_punctuation(cleaned_text)
+            # Step 4: Apply language-specific punctuation rules
+            if self.selected_language == "fr":
+                # French: non-breaking spaces before ; : ? !  and « guillemets »
+                cleaned_text = self.apply_french_punctuation(cleaned_text)
+            elif self.selected_language == "en":
+                # English: no spaces before punctuation and "quotes"
+                cleaned_text = self.apply_english_punctuation(cleaned_text)
+            # For other languages (de, es, it), skip special punctuation processing
 
             # Type the cleaned text if it's valid
             if cleaned_text and len(cleaned_text) > 1:
