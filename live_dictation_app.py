@@ -26,7 +26,7 @@ class LiveDictationApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Live Dictation - Whisper AI")
-        self.root.geometry("580x450")
+        self.root.geometry("580x650")
         self.root.resizable(True, True)
 
         # Configure style
@@ -51,6 +51,11 @@ class LiveDictationApp:
         self.level_update_running = False
         self.selected_language = "fr"  # Default: French
         self.hotkey_combination = "ctrl+shift"  # Default hotkey
+
+        # Cost tracking variables
+        self.total_cost = 0.0
+        self.price_per_second = 0.0001  # Default: $0.0001 per second
+        self.prompt_text = ""  # Prompt for improving transcription quality
 
         # Setup GUI
         self.setup_gui()
@@ -118,9 +123,63 @@ class LiveDictationApp:
         )
         title_label.grid(row=0, column=0, pady=(0, 20))
 
+        # Cost Display Section
+        cost_frame = ttk.LabelFrame(main_frame, text="API Usage Cost", padding="15")
+        cost_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        cost_frame.columnconfigure(0, weight=1)
+
+        self.cost_label = ttk.Label(
+            cost_frame,
+            text="Total Cost: $0.0000",
+            font=('Arial', 14, 'bold'),
+            foreground='green'
+        )
+        self.cost_label.grid(row=0, column=0, pady=5)
+
+        # Price Configuration Section
+        price_frame = ttk.LabelFrame(main_frame, text="Price Configuration", padding="15")
+        price_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        price_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(price_frame, text="Price per second (USD):").grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        self.price_entry = ttk.Entry(price_frame, width=20)
+        self.price_entry.insert(0, "0.0001")  # Default price
+        self.price_entry.grid(row=1, column=0, sticky=tk.W, pady=5, padx=5)
+
+        def update_price():
+            try:
+                new_price = float(self.price_entry.get())
+                if new_price >= 0:
+                    self.price_per_second = new_price
+                else:
+                    messagebox.showerror("Error", "Price must be a positive number")
+                    self.price_entry.delete(0, tk.END)
+                    self.price_entry.insert(0, str(self.price_per_second))
+            except ValueError:
+                messagebox.showerror("Error", "Please enter a valid number")
+                self.price_entry.delete(0, tk.END)
+                self.price_entry.insert(0, str(self.price_per_second))
+
+        self.price_entry.bind('<Return>', lambda e: update_price())
+
+        update_price_button = ttk.Button(
+            price_frame,
+            text="Update Price",
+            command=update_price
+        )
+        update_price_button.grid(row=2, column=0, pady=5)
+
+        ttk.Label(
+            price_frame,
+            text="Note: Whisper API charges $0.006 per minute = $0.0001 per second",
+            font=('Arial', 8),
+            foreground='gray'
+        ).grid(row=3, column=0, pady=5)
+
         # API Key Section
         api_frame = ttk.LabelFrame(main_frame, text="OpenAI Configuration", padding="15")
-        api_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        api_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         api_frame.columnconfigure(0, weight=1)
 
         ttk.Label(api_frame, text="API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -135,9 +194,48 @@ class LiveDictationApp:
         )
         self.save_api_button.grid(row=2, column=0, pady=5)
 
+        # Prompt Section (for improving transcription quality)
+        prompt_frame = ttk.LabelFrame(main_frame, text="Transcription Quality Prompt (Optional)", padding="15")
+        prompt_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        prompt_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            prompt_frame,
+            text="Enter context to improve transcription quality:",
+            font=('Arial', 9)
+        ).grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        ttk.Label(
+            prompt_frame,
+            text='Example: "La conversation suivante est une dictée d\'un avocat pour la constitution d\'un dossier client."',
+            font=('Arial', 8),
+            foreground='gray',
+            wraplength=500
+        ).grid(row=1, column=0, sticky=tk.W, pady=5)
+
+        # Create a Text widget for multi-line prompt input
+        self.prompt_text_widget = tk.Text(
+            prompt_frame,
+            height=3,
+            width=60,
+            wrap=tk.WORD,
+            font=('Arial', 9)
+        )
+        self.prompt_text_widget.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+
+        # Scrollbar for the text widget
+        prompt_scrollbar = ttk.Scrollbar(prompt_frame, orient="vertical", command=self.prompt_text_widget.yview)
+        self.prompt_text_widget.configure(yscrollcommand=prompt_scrollbar.set)
+
+        def update_prompt():
+            self.prompt_text = self.prompt_text_widget.get("1.0", tk.END).strip()
+
+        # Update prompt on any key release
+        self.prompt_text_widget.bind('<KeyRelease>', lambda e: update_prompt())
+
         # Microphone Selection Section
         mic_frame = ttk.LabelFrame(main_frame, text="Microphone Selection", padding="15")
-        mic_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        mic_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         mic_frame.columnconfigure(0, weight=1)
 
         ttk.Label(mic_frame, text="Select Microphone:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -155,7 +253,7 @@ class LiveDictationApp:
 
         # Language Selection Section
         lang_frame = ttk.LabelFrame(main_frame, text="Language Selection", padding="15")
-        lang_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        lang_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         lang_frame.columnconfigure(0, weight=1)
 
         ttk.Label(lang_frame, text="Dictation Language:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -185,7 +283,7 @@ class LiveDictationApp:
 
         # Hotkey Configuration Section
         hotkey_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Hotkey", padding="15")
-        hotkey_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        hotkey_frame.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         hotkey_frame.columnconfigure(0, weight=1)
 
         ttk.Label(hotkey_frame, text="Hold this key combination to record:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -216,7 +314,7 @@ class LiveDictationApp:
 
         # Audio Level Meter Section
         level_frame = ttk.LabelFrame(main_frame, text="Microphone Level", padding="15")
-        level_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        level_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         level_frame.columnconfigure(0, weight=1)
 
         ttk.Label(level_frame, text="Check if microphone is working:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -240,7 +338,7 @@ class LiveDictationApp:
 
         # Recording Control Section
         control_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Status", padding="15")
-        control_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        control_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
 
         # Status indicator
         self.status_label = ttk.Label(
@@ -264,17 +362,20 @@ class LiveDictationApp:
 
         # Instructions
         instructions_frame = ttk.Frame(main_frame)
-        instructions_frame.grid(row=7, column=0, sticky=(tk.W, tk.E))
+        instructions_frame.grid(row=10, column=0, sticky=(tk.W, tk.E))
 
         instructions = (
             "Instructions:\n"
-            "1. Enter your OpenAI API key and click Save\n"
-            "2. Select your microphone and check the level meter\n"
-            "3. Select your dictation language (Français, English, etc.)\n"
-            "4. Select your push-to-talk hotkey (default: Ctrl+Shift)\n"
-            "5. Open Word/Notepad and click where you want text\n"
-            "6. HOLD your hotkey and speak in your selected language\n"
-            "7. RELEASE the hotkey when done speaking"
+            "1. Configure the price per second (default: $0.0001)\n"
+            "2. Enter your OpenAI API key and click Save\n"
+            "3. (Optional) Add a prompt to improve transcription quality\n"
+            "4. Select your microphone and check the level meter\n"
+            "5. Select your dictation language (Français, English, etc.)\n"
+            "6. Select your push-to-talk hotkey (default: Ctrl+Shift)\n"
+            "7. Open Word/Notepad and click where you want text\n"
+            "8. HOLD your hotkey and speak in your selected language\n"
+            "9. RELEASE the hotkey when done speaking\n"
+            "10. Monitor your API usage cost in real-time"
         )
         info_label = ttk.Label(
             instructions_frame,
@@ -622,13 +723,30 @@ class LiveDictationApp:
                 wf.setframerate(self.sample_rate)
                 wf.writeframes(audio_data.tobytes())
 
+            # Calculate audio duration for cost tracking
+            audio_duration_seconds = len(audio_data) / self.sample_rate
+
             # Transcribe using Whisper API
             with open(temp_file.name, 'rb') as audio_file:
-                transcript = self.client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    language=self.selected_language
-                )
+                # Build API call parameters
+                api_params = {
+                    "model": "whisper-1",
+                    "file": audio_file,
+                    "language": self.selected_language
+                }
+
+                # Add prompt if provided (improves transcription quality)
+                if self.prompt_text:
+                    api_params["prompt"] = self.prompt_text
+
+                transcript = self.client.audio.transcriptions.create(**api_params)
+
+            # Calculate and update cost
+            cost_for_this_audio = audio_duration_seconds * self.price_per_second
+            self.total_cost += cost_for_this_audio
+
+            # Update cost display on UI thread
+            self.root.after(0, lambda: self.update_cost_display())
 
             # Clean up temp file
             try:
@@ -671,6 +789,25 @@ class LiveDictationApp:
 
         except Exception as e:
             pass  # Silently continue on errors
+
+    def update_cost_display(self):
+        """Update the cost display label with current total cost"""
+        try:
+            # Format cost to 4 decimal places
+            cost_text = f"Total Cost: ${self.total_cost:.4f}"
+            self.cost_label.config(text=cost_text)
+
+            # Change color based on cost
+            if self.total_cost > 1.0:
+                self.cost_label.config(foreground='red')
+            elif self.total_cost > 0.5:
+                self.cost_label.config(foreground='orange')
+            elif self.total_cost > 0.1:
+                self.cost_label.config(foreground='blue')
+            else:
+                self.cost_label.config(foreground='green')
+        except Exception as e:
+            pass  # Silently handle errors
 
     def type_text(self, text):
         """Type transcribed text into the active window using clipboard"""
