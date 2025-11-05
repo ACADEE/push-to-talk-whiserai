@@ -11,6 +11,7 @@ import wave
 import tempfile
 import os
 from datetime import datetime
+from pathlib import Path
 import sounddevice as sd
 import numpy as np
 import pyautogui
@@ -30,6 +31,10 @@ class LiveDictationApp:
         style = ttk.Style()
         style.theme_use('clam')
 
+        # Get application directory
+        self.app_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+        self.api_key_file = self.app_dir / "api_key.txt"
+
         # State variables
         self.is_recording = False
         self.recording_thread = None
@@ -44,6 +49,9 @@ class LiveDictationApp:
 
         # Setup GUI
         self.setup_gui()
+
+        # Load saved API key
+        self.load_api_key()
 
         # Load available audio devices
         self.load_audio_devices()
@@ -284,6 +292,24 @@ class LiveDictationApp:
             # Re-enable after recording stops
             self.root.after(500, self.update_audio_level)
 
+    def load_api_key(self):
+        """Load API key from file if it exists"""
+        try:
+            if self.api_key_file.exists():
+                with open(self.api_key_file, 'r') as f:
+                    saved_key = f.read().strip()
+                    if saved_key:
+                        # Populate the entry field
+                        self.api_key_entry.delete(0, tk.END)
+                        self.api_key_entry.insert(0, saved_key)
+
+                        # Auto-initialize the client
+                        self.api_key = saved_key
+                        self.client = OpenAI(api_key=self.api_key)
+                        print("API key loaded from file")
+        except Exception as e:
+            print(f"Error loading API key: {e}")
+
     def save_api_key(self):
         """Save and validate API key"""
         api_key = self.api_key_entry.get().strip()
@@ -304,7 +330,12 @@ class LiveDictationApp:
         try:
             self.api_key = api_key
             self.client = OpenAI(api_key=self.api_key)
-            messagebox.showinfo("Success", "API key saved successfully!")
+
+            # Save to file for future use
+            with open(self.api_key_file, 'w') as f:
+                f.write(api_key)
+
+            messagebox.showinfo("Success", "API key saved successfully!\n\nIt will be loaded automatically next time.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to initialize OpenAI client: {str(e)}")
 
