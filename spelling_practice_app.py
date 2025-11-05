@@ -22,7 +22,7 @@ class SpellingPracticeApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Spelling Practice - Live Whisper AI")
-        self.root.geometry("700x600")
+        self.root.geometry("720x500")
         self.root.resizable(True, True)
 
         # Configure style
@@ -51,14 +51,45 @@ class SpellingPracticeApp:
     def setup_gui(self):
         """Setup the GUI components"""
 
-        # Main container with padding
-        main_frame = ttk.Frame(self.root, padding="10")
+        # Configure root grid
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+
+        # Create canvas and scrollbar
+        canvas = tk.Canvas(self.root, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
+
+        # Create scrollable frame
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Pack canvas and scrollbar
+        canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+
+        # Main container with padding (now inside scrollable frame)
+        main_frame = ttk.Frame(scrollable_frame, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Configure grid weights
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        scrollable_frame.columnconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
+
+        # Enable mousewheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # Store canvas for later use
+        self.canvas = canvas
 
         # Title
         title_label = ttk.Label(
