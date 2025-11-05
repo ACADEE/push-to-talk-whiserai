@@ -61,6 +61,7 @@ class LiveDictationApp:
         self.total_cost = 0.0
         self.price_per_second = 0.0001  # Default: $0.0001 per second
         self.prompt_text = ""  # Prompt for improving transcription quality
+        self.custom_replacements = {}  # Custom word replacements (e.g., "Acadie" -> "ACADEE")
 
         # Setup GUI
         self.setup_gui()
@@ -292,9 +293,60 @@ class LiveDictationApp:
         # Update prompt on any key release
         self.prompt_text_widget.bind('<KeyRelease>', lambda e: update_prompt())
 
+        # Custom Word Replacements Section (NEW!)
+        replacements_frame = ttk.LabelFrame(main_frame, text="🔤 Custom Word Replacements", padding="15")
+        replacements_frame.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        replacements_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            replacements_frame,
+            text="Define custom word replacements (one per line: word -> REPLACEMENT):",
+            font=('Arial', 9)
+        ).grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        ttk.Label(
+            replacements_frame,
+            text='Example: "Acadie -> ACADEE" will replace all occurrences of "Acadie" with "ACADEE"',
+            font=('Arial', 8),
+            foreground='gray',
+            wraplength=500
+        ).grid(row=1, column=0, sticky=tk.W, pady=5)
+
+        # Create a Text widget for multi-line replacement rules
+        self.replacements_text_widget = tk.Text(
+            replacements_frame,
+            height=4,
+            width=60,
+            wrap=tk.WORD,
+            font=('Arial', 9)
+        )
+        self.replacements_text_widget.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+
+        # Scrollbar for the text widget
+        replacements_scrollbar = ttk.Scrollbar(replacements_frame, orient="vertical", command=self.replacements_text_widget.yview)
+        self.replacements_text_widget.configure(yscrollcommand=replacements_scrollbar.set)
+
+        def update_replacements():
+            """Parse the replacement rules and store them"""
+            self.custom_replacements = {}
+            rules_text = self.replacements_text_widget.get("1.0", tk.END).strip()
+
+            for line in rules_text.split('\n'):
+                line = line.strip()
+                if '->' in line:
+                    parts = line.split('->')
+                    if len(parts) == 2:
+                        source = parts[0].strip()
+                        target = parts[1].strip()
+                        if source and target:
+                            self.custom_replacements[source] = target
+
+        # Update replacements on any key release
+        self.replacements_text_widget.bind('<KeyRelease>', lambda e: update_replacements())
+
         # Microphone Selection Section
         mic_frame = ttk.LabelFrame(main_frame, text="Microphone Selection", padding="15")
-        mic_frame.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        mic_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         # Store the mode_frame for later use in on_mode_changed
         self.mode_frame = mode_frame
         mic_frame.columnconfigure(0, weight=1)
@@ -314,7 +366,7 @@ class LiveDictationApp:
 
         # Language Selection Section
         lang_frame = ttk.LabelFrame(main_frame, text="Language Selection", padding="15")
-        lang_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        lang_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         lang_frame.columnconfigure(0, weight=1)
 
         ttk.Label(lang_frame, text="Dictation Language:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -344,7 +396,7 @@ class LiveDictationApp:
 
         # Hotkey Configuration Section
         hotkey_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Hotkey", padding="15")
-        hotkey_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        hotkey_frame.grid(row=10, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         hotkey_frame.columnconfigure(0, weight=1)
 
         ttk.Label(hotkey_frame, text="Hold this key combination to record:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -375,7 +427,7 @@ class LiveDictationApp:
 
         # Audio Level Meter Section
         level_frame = ttk.LabelFrame(main_frame, text="Microphone Level", padding="15")
-        level_frame.grid(row=10, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        level_frame.grid(row=11, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         level_frame.columnconfigure(0, weight=1)
 
         ttk.Label(level_frame, text="Check if microphone is working:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -399,20 +451,21 @@ class LiveDictationApp:
 
         # Instructions
         instructions_frame = ttk.Frame(main_frame)
-        instructions_frame.grid(row=11, column=0, sticky=(tk.W, tk.E))
+        instructions_frame.grid(row=12, column=0, sticky=(tk.W, tk.E))
 
         instructions = (
             "Instructions:\n"
             "1. Configure the price per second (default: $0.0001)\n"
             "2. Enter your OpenAI API key and click Save\n"
             "3. (Optional) Add a prompt to improve transcription quality\n"
-            "4. Select your microphone and check the level meter\n"
-            "5. Select your dictation language (Français, English, etc.)\n"
-            "6. Select your push-to-talk hotkey (default: Ctrl+Shift)\n"
-            "7. Open Word/Notepad and click where you want text\n"
-            "8. HOLD your hotkey and speak in your selected language\n"
-            "9. RELEASE the hotkey when done speaking\n"
-            "10. Monitor your API usage cost in real-time"
+            "4. (Optional) Add custom word replacements (e.g., Acadie -> ACADEE)\n"
+            "5. Select your microphone and check the level meter\n"
+            "6. Select your dictation language (Français, English, etc.)\n"
+            "7. Select your push-to-talk hotkey (default: Ctrl+Shift)\n"
+            "8. Open Word/Notepad and click where you want text\n"
+            "9. HOLD your hotkey and speak in your selected language\n"
+            "10. RELEASE the hotkey when done speaking\n"
+            "11. Monitor your API usage cost in real-time"
         )
         info_label = ttk.Label(
             instructions_frame,
@@ -888,6 +941,22 @@ class LiveDictationApp:
             # Stream is now closed in stop_recording() to prevent race conditions
             pass
 
+    def apply_custom_replacements(self, text):
+        """Apply user-defined custom word replacements"""
+        if not self.custom_replacements:
+            return text  # No custom replacements defined
+
+        # Apply each replacement rule
+        # Use case-sensitive replacement to preserve user intent
+        for source, target in self.custom_replacements.items():
+            # Use word boundary matching to avoid partial replacements
+            # Example: "Acadie" -> "ACADEE" but not "Acadienne" -> "ACADEEenne"
+            import re
+            pattern = r'\b' + re.escape(source) + r'\b'
+            text = re.sub(pattern, target, text, flags=re.IGNORECASE)
+
+        return text
+
     def apply_french_punctuation(self, text):
         """Apply French punctuation rules (spaces before ; : ? !)"""
         import re
@@ -1068,6 +1137,9 @@ class LiveDictationApp:
 
             # Clean filler words from transcription
             cleaned_text = self.clean_filler_words(transcribed_text)
+
+            # Apply custom word replacements (e.g., "Acadie" -> "ACADEE")
+            cleaned_text = self.apply_custom_replacements(cleaned_text)
 
             # Apply French punctuation rules if French is selected
             cleaned_text = self.apply_french_punctuation(cleaned_text)
