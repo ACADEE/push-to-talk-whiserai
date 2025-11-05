@@ -166,6 +166,32 @@ class LiveDictationApp:
         )
         self.save_api_button.grid(row=2, column=0, pady=5)
 
+        # API Status indicator (green = OK, red = error)
+        self.api_status_label = ttk.Label(
+            api_frame,
+            text="API Status: Not checked",
+            font=('Arial', 10),
+            foreground="gray"
+        )
+        self.api_status_label.grid(row=3, column=0, pady=5)
+
+        # Link to get API key
+        api_link_label = ttk.Label(
+            api_frame,
+            text="Get your API key from: https://platform.openai.com/api-keys",
+            font=('Arial', 9),
+            foreground="blue",
+            cursor="hand2"
+        )
+        api_link_label.grid(row=4, column=0, pady=5)
+
+        # Make the link clickable
+        def open_api_keys_url(event):
+            import webbrowser
+            webbrowser.open("https://platform.openai.com/api-keys")
+
+        api_link_label.bind("<Button-1>", open_api_keys_url)
+
         # Cost Display Section
         cost_frame = ttk.LabelFrame(main_frame, text="API Usage Cost", padding="15")
         cost_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
@@ -779,7 +805,14 @@ class LiveDictationApp:
                         # Auto-initialize the client
                         self.api_key = saved_key
                         self.client = OpenAI(api_key=self.api_key)
+
+                        # Check API status at startup
+                        self.root.after(1000, self.check_api_status)  # After 1 second
+            else:
+                # No key file exists
+                self.update_api_status("not_set", "API Status: No key set")
         except Exception as e:
+            self.update_api_status("error", "API Status: Error loading key")
             pass  # Silently handle errors
 
     def save_api_key(self):
@@ -807,9 +840,52 @@ class LiveDictationApp:
             with open(self.api_key_file, 'w') as f:
                 f.write(api_key)
 
+            # Check API status after saving
+            self.check_api_status()
+
             messagebox.showinfo("Success", "API key saved successfully!\n\nIt will be loaded automatically next time.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to initialize OpenAI client: {str(e)}")
+            self.update_api_status("error", f"Error: {str(e)[:40]}")
+
+    def check_api_status(self):
+        """Test the API connection and update status indicator"""
+        if not self.client or not self.api_key:
+            self.update_api_status("not_set", "API Status: No key set")
+            return
+
+        try:
+            # Make a minimal API call to test connection
+            # Using models.list() as it's lightweight
+            self.client.models.list(limit=1)
+
+            # If successful, show green status
+            self.update_api_status("ok", "API Status: ✓ OK")
+
+        except Exception as e:
+            # If failed, show red status with error
+            error_msg = str(e)
+            if "Incorrect API key" in error_msg or "invalid" in error_msg.lower():
+                self.update_api_status("error", "API Status: ✗ Invalid API Key")
+            elif "insufficient_quota" in error_msg.lower() or "quota" in error_msg.lower():
+                self.update_api_status("error", "API Status: ✗ No credits")
+            elif "network" in error_msg.lower() or "connection" in error_msg.lower():
+                self.update_api_status("error", "API Status: ✗ Network error")
+            else:
+                self.update_api_status("error", f"API Status: ✗ {error_msg[:30]}")
+
+    def update_api_status(self, status_type, message):
+        """Update the API status label with color"""
+        colors = {
+            "ok": "green",
+            "error": "red",
+            "not_set": "gray"
+        }
+
+        self.api_status_label.config(
+            text=message,
+            foreground=colors.get(status_type, "gray")
+        )
 
     def load_prompt_quality(self):
         """Load saved prompt quality text from file if it exists"""
@@ -1205,41 +1281,48 @@ class LiveDictationApp:
         if self.selected_language != "fr":
             return text  # Only apply for French
 
-        # French uses non-breaking space (U+00A0) before double punctuation
-        nbsp = '\u00A0'  # Non-breaking space
+        try:
+            # French uses non-breaking space (U+00A0) before double punctuation
+            nbsp = '\u00A0'  # Non-breaking space
 
-        # Rule 1: Add non-breaking space before ; : ? !
-        # This creates proper French typography with insecable spaces
-        text = re.sub(r'\s*;', nbsp + ';', text)
-        text = re.sub(r'\s*:', nbsp + ':', text)
-        text = re.sub(r'\s*\?', nbsp + '?', text)
-        text = re.sub(r'\s*!', nbsp + '!', text)
+            # Rule 1: Add non-breaking space before ; : ? !
+            # This creates proper French typography with insecable spaces
+            text = re.sub(r'\s*;', nbsp + ';', text)
+            text = re.sub(r'\s*:', nbsp + ':', text)
+            text = re.sub(r'\s*\?', nbsp + '?', text)
+            text = re.sub(r'\s*!', nbsp + '!', text)
 
-        # Rule 2: French quotes « » with fine spaces
-        # Fine space (U+202F) is the proper typographic space for guillemets
-        thin_space = '\u202F'  # Thin non-breaking space
+            # Rule 2: French quotes « » with fine spaces
+            # Fine space (U+202F) is the proper typographic space for guillemets
+            thin_space = '\u202F'  # Thin non-breaking space
 
-        # If we find regular quotes, convert to French guillemets
-        text = re.sub(r'"([^"]+)"', r'«' + thin_space + r'\1' + thin_space + r'»', text)
+            # If we find regular quotes, convert to French guillemets
+            # FIXED: Use proper backreference with f-string
+            text = re.sub(r'"([^"]+)"', f'«{thin_space}\\1{thin_space}»', text)
 
-        # Clean up any existing guillemets to ensure proper spacing
-        text = re.sub(r'«\s*', '«' + thin_space, text)
-        text = re.sub(r'\s*»', thin_space + '»', text)
+            # Clean up any existing guillemets to ensure proper spacing
+            text = re.sub(r'«\s*', '«' + thin_space, text)
+            text = re.sub(r'\s*»', thin_space + '»', text)
 
-        # Rule 3: No comma before "et" in French enumerations
-        text = re.sub(r',\s+(et\b)', r' \1', text)
+            # Rule 3: No comma before "et" in French enumerations
+            text = re.sub(r',\s+(et\b)', r' \1', text)
 
-        # Rule 4: Lowercase after colon (unless proper noun - we can't detect perfectly)
-        # We'll skip this as it requires NLP to detect proper nouns
+            # Rule 4: Lowercase after colon (unless proper noun - we can't detect perfectly)
+            # We'll skip this as it requires NLP to detect proper nouns
 
-        # Rule 5: Ensure space after punctuation (normal space, not nbsp)
-        text = re.sub(r'([.,:;?!])(?=[^\s])', r'\1 ', text)
+            # Rule 5: Ensure space after punctuation (normal space, not nbsp)
+            text = re.sub(r'([.,:;?!])(?=[^\s])', r'\1 ', text)
 
-        # Clean up multiple normal spaces (but preserve nbsp)
-        text = re.sub(r'  +', ' ', text)  # Only replace multiple normal spaces
-        text = text.strip()
+            # Clean up multiple normal spaces (but preserve nbsp)
+            text = re.sub(r'  +', ' ', text)  # Only replace multiple normal spaces
+            text = text.strip()
 
-        return text
+            return text
+
+        except Exception as e:
+            # If French punctuation fails, return original text
+            print(f"DEBUG: French punctuation error: {str(e)}")
+            return text
 
     def clean_filler_words(self, text):
         """Remove filler words and hesitations from text"""
