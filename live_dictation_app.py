@@ -1148,7 +1148,7 @@ class LiveDictationApp:
                 (r'\b(pourcent)\b', '%'),
                 (r'\b(et commercial)\b', '&'),
                 (r'\b(slash|barre oblique)\b', '/'),
-                (r'\b(antislash|barre oblique inversée)\b', '\\'),
+                (r'\b(antislash|barre oblique inversée)\b', r'\\'),
             ]
 
         elif self.selected_language == "en":
@@ -1183,7 +1183,7 @@ class LiveDictationApp:
                 (r'\b(percent|percent sign)\b', '%'),
                 (r'\b(ampersand|and sign)\b', '&'),
                 (r'\b(slash|forward slash)\b', '/'),
-                (r'\b(backslash)\b', '\\'),
+                (r'\b(backslash)\b', r'\\'),
             ]
 
         elif self.selected_language == "de":
@@ -1233,8 +1233,13 @@ class LiveDictationApp:
             return text
 
         # Apply all replacements (case-insensitive)
-        for pattern, replacement in replacements:
-            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+        try:
+            for pattern, replacement in replacements:
+                text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+        except Exception as e:
+            # If verbal punctuation conversion fails, return original text
+            print(f"DEBUG: Verbal punctuation error: {str(e)}")
+            return text
 
         return text
 
@@ -1245,12 +1250,19 @@ class LiveDictationApp:
 
         # Apply each replacement rule
         # Use case-sensitive replacement to preserve user intent
-        for source, target in self.custom_replacements.items():
-            # Use word boundary matching to avoid partial replacements
-            # Example: "Acadie" -> "ACADEE" but not "Acadienne" -> "ACADEEenne"
-            import re
-            pattern = r'\b' + re.escape(source) + r'\b'
-            text = re.sub(pattern, target, text, flags=re.IGNORECASE)
+        try:
+            for source, target in self.custom_replacements.items():
+                # Use word boundary matching to avoid partial replacements
+                # Example: "Acadie" -> "ACADEE" but not "Acadienne" -> "ACADEEenne"
+                import re
+                pattern = r'\b' + re.escape(source) + r'\b'
+                # Escape backslashes in target to prevent regex errors
+                target_safe = target.replace('\\', r'\\')
+                text = re.sub(pattern, target_safe, text, flags=re.IGNORECASE)
+        except Exception as e:
+            # If custom replacement fails, return original text
+            print(f"DEBUG: Custom replacement error: {str(e)}")
+            return text
 
         return text
 
