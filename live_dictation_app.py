@@ -948,7 +948,20 @@ class LiveDictationApp:
             VOICE_THRESHOLD = 0.008
 
             if rms < VOICE_THRESHOLD:
+                # Update status to green for live mode (no API call)
+                if self.recording_mode == "live" and self.live_recording_enabled:
+                    self.root.after(0, lambda: self.status_label.config(
+                        text="🟢 Live Mode - No speech detected (saving costs)",
+                        foreground="green"
+                    ))
                 return  # Don't send silence to API!
+
+            # Update status to red for live mode (API call happening)
+            if self.recording_mode == "live" and self.live_recording_enabled:
+                self.root.after(0, lambda: self.status_label.config(
+                    text="🔴 API Call - Processing speech...",
+                    foreground="red"
+                ))
 
             # Convert to 16-bit PCM
             audio_data = (audio_data * 32767).astype(np.int16)
@@ -1018,6 +1031,12 @@ class LiveDictationApp:
             is_hallucination = any(text_lower == h for h in hallucinations)
 
             if is_hallucination:
+                # Restore live mode status after filtering hallucination
+                if self.recording_mode == "live" and self.live_recording_enabled:
+                    self.root.after(0, lambda: self.status_label.config(
+                        text="🟢 Live Mode Active - Speak anytime",
+                        foreground="green"
+                    ))
                 return  # Don't type hallucinations!
 
             # Clean filler words from transcription
@@ -1027,8 +1046,36 @@ class LiveDictationApp:
             if cleaned_text and len(cleaned_text) > 1:
                 self.type_text(cleaned_text)
 
+            # Restore live mode status after successful typing
+            if self.recording_mode == "live" and self.live_recording_enabled:
+                self.root.after(0, lambda: self.status_label.config(
+                    text="🟢 Live Mode Active - Speak anytime",
+                    foreground="green"
+                ))
+
         except Exception as e:
-            pass  # Silently continue on errors
+            # Log the error for debugging instead of silently failing
+            error_msg = f"Error in process_audio_chunk: {str(e)}"
+            # Show error in status for a moment
+            self.root.after(0, lambda: self.status_label.config(
+                text=f"⚠️ Error: {str(e)[:50]}",
+                foreground="orange"
+            ))
+            # Restore normal status after 3 seconds
+            import time
+            def restore_status():
+                time.sleep(3)
+                if self.recording_mode == "live" and self.live_recording_enabled:
+                    self.root.after(0, lambda: self.status_label.config(
+                        text="🟢 Live Mode Active - Speak anytime",
+                        foreground="green"
+                    ))
+                elif self.recording_mode == "push-to-talk":
+                    self.root.after(0, lambda: self.status_label.config(
+                        text="⚪ Ready - Hold hotkey to start",
+                        foreground="gray"
+                    ))
+            threading.Thread(target=restore_status, daemon=True).start()
 
     def update_cost_display(self):
         """Update the cost display label with current total cost"""
@@ -1058,32 +1105,68 @@ class LiveDictationApp:
                 text = ' ' + text
 
             # Save current clipboard content
+            old_clipboard = ""
             try:
                 old_clipboard = pyperclip.paste()
-            except:
-                old_clipboard = ""
+            except Exception as clip_err:
+                # If clipboard read fails, continue anyway
+                pass
 
             # Copy text to clipboard
-            pyperclip.copy(text)
-
-            # Small delay to ensure clipboard is updated
             import time
-            time.sleep(0.05)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    pyperclip.copy(text)
+                    time.sleep(0.05)
+                    break
+                except Exception as copy_err:
+                    if attempt == max_retries - 1:
+                        raise Exception(f"Clipboard copy failed: {copy_err}")
+                    time.sleep(0.1)
 
-            # Paste using Ctrl+V
-            pyautogui.hotkey('ctrl', 'v')
+            # Paste using Ctrl+V with retry logic
+            for attempt in range(max_retries):
+                try:
+                    pyautogui.hotkey('ctrl', 'v')
+                    break
+                except Exception as paste_err:
+                    if attempt == max_retries - 1:
+                        raise Exception(f"Paste failed: {paste_err}")
+                    time.sleep(0.1)
 
             # Small delay before restoring clipboard
             time.sleep(0.1)
 
-            # Restore old clipboard content
+            # Restore old clipboard content (best effort)
             try:
-                pyperclip.copy(old_clipboard)
+                if old_clipboard:
+                    pyperclip.copy(old_clipboard)
             except:
-                pass
+                pass  # Don't fail if clipboard restore doesn't work
 
         except Exception as e:
-            pass  # Silently handle errors
+            # Show error to user instead of silently failing
+            error_msg = f"⚠️ Typing failed: {str(e)[:40]}"
+            self.root.after(0, lambda: self.status_label.config(
+                text=error_msg,
+                foreground="orange"
+            ))
+            # Restore status after 3 seconds
+            def restore():
+                import time
+                time.sleep(3)
+                if self.recording_mode == "live" and self.live_recording_enabled:
+                    self.root.after(0, lambda: self.status_label.config(
+                        text="🟢 Live Mode Active - Speak anytime",
+                        foreground="green"
+                    ))
+                elif self.recording_mode == "push-to-talk":
+                    self.root.after(0, lambda: self.status_label.config(
+                        text="⚪ Ready - Hold hotkey to start",
+                        foreground="gray"
+                    ))
+            threading.Thread(target=restore, daemon=True).start()
 
     def stop_recording(self):
         """Stop recording and process accumulated audio"""
