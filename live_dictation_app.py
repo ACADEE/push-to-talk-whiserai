@@ -1106,22 +1106,20 @@ class LiveDictationApp:
                 with open(self.api_key_file, 'r') as f:
                     saved_key = f.read().strip()
                     if saved_key:
-                        # Populate the entry field
-                        self.api_key_entry.delete(0, tk.END)
-                        self.api_key_entry.insert(0, saved_key)
+                        # Populate the entry field if Settings panel is open
+                        if hasattr(self, 'api_key_entry'):
+                            self.api_key_entry.delete(0, tk.END)
+                            self.api_key_entry.insert(0, saved_key)
 
                         # Auto-initialize the client
                         self.api_key = saved_key
                         self.client = OpenAI(api_key=self.api_key)
 
-                        # Check API status at startup
+                        # Check API status at startup (silently)
                         self.root.after(1000, self.check_api_status)  # After 1 second
-            else:
-                # No key file exists
-                self.update_api_status("not_set", "API Status: No key set")
         except Exception as e:
-            self.update_api_status("error", "API Status: Error loading key")
-            pass  # Silently handle errors
+            # Silently handle errors on startup
+            pass
 
     def save_api_key(self):
         """Save and validate API key"""
@@ -1185,16 +1183,18 @@ class LiveDictationApp:
 
     def update_api_status(self, status_type, message):
         """Update the API status label with color"""
-        colors = {
-            "ok": "green",
-            "error": "red",
-            "not_set": "gray"
-        }
+        # Only update if Settings panel is open
+        if hasattr(self, 'api_status_label'):
+            colors = {
+                "ok": "green",
+                "error": "red",
+                "not_set": "gray"
+            }
 
-        self.api_status_label.config(
-            text=message,
-            foreground=colors.get(status_type, "gray")
-        )
+            self.api_status_label.config(
+                text=message,
+                foreground=colors.get(status_type, "gray")
+            )
 
     def load_prompt_quality(self):
         """Load saved prompt quality text from file if it exists"""
@@ -1203,21 +1203,27 @@ class LiveDictationApp:
                 with open(self.prompt_file, 'r', encoding='utf-8') as f:
                     saved_prompt = f.read().strip()
                     if saved_prompt:
-                        # Populate the text widget
-                        self.prompt_text_widget.delete("1.0", tk.END)
-                        self.prompt_text_widget.insert("1.0", saved_prompt)
-                        # Update the variable
+                        # Update the variable (always)
                         self.prompt_text = saved_prompt
+                        # Populate the text widget if Settings panel is open
+                        if hasattr(self, 'prompt_text_widget'):
+                            self.prompt_text_widget.delete("1.0", tk.END)
+                            self.prompt_text_widget.insert("1.0", saved_prompt)
         except Exception as e:
             pass  # Silently handle errors
 
     def save_prompt_quality(self):
         """Save prompt quality text to file"""
         try:
-            prompt_text = self.prompt_text_widget.get("1.0", tk.END).strip()
+            # Get text from widget if it exists, otherwise use stored variable
+            if hasattr(self, 'prompt_text_widget'):
+                prompt_text = self.prompt_text_widget.get("1.0", tk.END).strip()
+                self.prompt_text = prompt_text
+            else:
+                prompt_text = self.prompt_text
+
             with open(self.prompt_file, 'w', encoding='utf-8') as f:
                 f.write(prompt_text)
-            self.prompt_text = prompt_text
         except Exception as e:
             pass  # Silently handle errors
 
@@ -1228,11 +1234,7 @@ class LiveDictationApp:
                 with open(self.custom_words_file, 'r', encoding='utf-8') as f:
                     saved_rules = f.read().strip()
                     if saved_rules:
-                        # Populate the text widget
-                        self.replacements_text_widget.delete("1.0", tk.END)
-                        self.replacements_text_widget.insert("1.0", saved_rules)
-
-                        # Parse and update the replacements dictionary
+                        # Parse and update the replacements dictionary (always)
                         self.custom_replacements = {}
                         for line in saved_rules.split('\n'):
                             line = line.strip()
@@ -1243,27 +1245,34 @@ class LiveDictationApp:
                                     target = parts[1].strip()
                                     if source and target:
                                         self.custom_replacements[source] = target
+
+                        # Populate the text widget if Settings panel is open
+                        if hasattr(self, 'replacements_text_widget'):
+                            self.replacements_text_widget.delete("1.0", tk.END)
+                            self.replacements_text_widget.insert("1.0", saved_rules)
         except Exception as e:
             pass  # Silently handle errors
 
     def save_custom_words(self):
         """Save custom word replacements to file"""
         try:
-            rules_text = self.replacements_text_widget.get("1.0", tk.END).strip()
-            with open(self.custom_words_file, 'w', encoding='utf-8') as f:
-                f.write(rules_text)
+            # Only save if widget exists (Settings panel is open)
+            if hasattr(self, 'replacements_text_widget'):
+                rules_text = self.replacements_text_widget.get("1.0", tk.END).strip()
+                with open(self.custom_words_file, 'w', encoding='utf-8') as f:
+                    f.write(rules_text)
 
-            # Update the replacements dictionary
-            self.custom_replacements = {}
-            for line in rules_text.split('\n'):
-                line = line.strip()
-                if '->' in line:
-                    parts = line.split('->')
-                    if len(parts) == 2:
-                        source = parts[0].strip()
-                        target = parts[1].strip()
-                        if source and target:
-                            self.custom_replacements[source] = target
+                # Update the replacements dictionary
+                self.custom_replacements = {}
+                for line in rules_text.split('\n'):
+                    line = line.strip()
+                    if '->' in line:
+                        parts = line.split('->')
+                        if len(parts) == 2:
+                            source = parts[0].strip()
+                            target = parts[1].strip()
+                            if source and target:
+                                self.custom_replacements[source] = target
         except Exception as e:
             pass  # Silently handle errors
 
