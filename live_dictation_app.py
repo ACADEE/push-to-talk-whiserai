@@ -36,6 +36,7 @@ class LiveDictationApp:
         # Get application directory
         self.app_dir = Path(os.path.dirname(os.path.abspath(__file__)))
         self.api_key_file = self.app_dir / "api_key.txt"
+        self.mic_config_file = self.app_dir / "microphone.txt"
 
         # State variables
         self.is_recording = False
@@ -401,10 +402,24 @@ class LiveDictationApp:
 
             if input_devices:
                 self.mic_combo['values'] = input_devices
-                self.mic_combo.current(0)  # Select first device by default
 
-                # Extract device index from selection
-                self.selected_device = 0
+                # Try to load saved microphone
+                saved_device = self.load_saved_microphone()
+                device_found = False
+
+                if saved_device is not None:
+                    # Try to find the saved device
+                    for idx, device_str in enumerate(input_devices):
+                        if device_str.startswith(f"{saved_device}:"):
+                            self.mic_combo.current(idx)
+                            self.selected_device = saved_device
+                            device_found = True
+                            break
+
+                if not device_found:
+                    # Use first device if saved one not found
+                    self.mic_combo.current(0)
+                    self.selected_device = 0
             else:
                 messagebox.showwarning(
                     "No Microphones",
@@ -415,12 +430,34 @@ class LiveDictationApp:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load audio devices: {str(e)}")
 
+    def load_saved_microphone(self):
+        """Load saved microphone selection from file"""
+        try:
+            if self.mic_config_file.exists():
+                with open(self.mic_config_file, 'r') as f:
+                    device_id = f.read().strip()
+                    if device_id.isdigit():
+                        return int(device_id)
+        except:
+            pass
+        return None
+
+    def save_microphone(self, device_id):
+        """Save microphone selection to file"""
+        try:
+            with open(self.mic_config_file, 'w') as f:
+                f.write(str(device_id))
+        except:
+            pass
+
     def on_mic_changed(self, event=None):
         """Handle microphone selection change"""
         device_selection = self.mic_combo.get()
         if device_selection and device_selection != "No devices found":
             try:
                 self.selected_device = int(device_selection.split(':')[0])
+                # Save the selection for future use
+                self.save_microphone(self.selected_device)
                 # Restart level monitoring with new device
                 self.start_level_monitoring()
             except:
@@ -682,9 +719,8 @@ class LiveDictationApp:
             # Silently handle errors
             pass
         finally:
-            if self.stream:
-                self.stream.stop()
-                self.stream.close()
+            # Stream is now closed in stop_recording() to prevent race conditions
+            pass
 
     def clean_filler_words(self, text):
         """Remove filler words and hesitations from text"""
@@ -885,7 +921,21 @@ class LiveDictationApp:
 
     def stop_recording(self):
         """Stop recording and process accumulated audio"""
+        if not self.is_recording:
+            return  # Already stopped
+
         self.is_recording = False
+
+        # Close the stream immediately to prevent race conditions
+        import time
+        if self.stream:
+            try:
+                self.stream.stop()
+                self.stream.close()
+                self.stream = None
+            except:
+                pass
+            time.sleep(0.1)  # Small delay to ensure stream is fully closed
 
         # Update UI
         self.status_label.config(text="⏳ Processing...", foreground="orange")
