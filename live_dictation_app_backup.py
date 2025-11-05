@@ -110,227 +110,340 @@ class LiveDictationApp:
         self.register_hotkey()
 
     def setup_gui(self):
-        """Setup the modern Dashboard GUI with transcription area"""
+        """Setup the GUI components"""
 
-        # Get current theme colors
-        theme = self.theme_colors[self.current_theme]
+        # Configure root grid
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
-        # Configure root with theme
-        self.root.configure(bg=theme["bg"])
+        # Create canvas and scrollbar
+        canvas = tk.Canvas(self.root, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
 
-        # Main container - no scrollable frame needed (compact modern design)
-        main_container = tk.Frame(self.root, bg=theme["bg"])
-        main_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        # Create scrollable frame
+        scrollable_frame = ttk.Frame(canvas)
 
-        # ========================================
-        # TOP STATUS BAR (Barre d'État Supérieure)
-        # ========================================
-        top_bar = tk.Frame(main_container, bg=theme["secondary_bg"], relief=tk.FLAT, bd=1)
-        top_bar.pack(fill=tk.X, pady=(0, 15))
-
-        # Left side: Status Indicator
-        status_container = tk.Frame(top_bar, bg=theme["secondary_bg"])
-        status_container.pack(side=tk.LEFT, padx=15, pady=10)
-
-        self.status_label = tk.Label(
-            status_container,
-            text="⚪ Ready",
-            font=('Segoe UI', 11, 'bold'),
-            bg=theme["secondary_bg"],
-            fg="gray"
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
-        self.status_label.pack()
 
-        # Center: Mode Selector (Segmented Control)
-        mode_container = tk.Frame(top_bar, bg=theme["secondary_bg"])
-        mode_container.pack(side=tk.LEFT, expand=True, padx=20, pady=8)
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
 
-        # Mode buttons frame
-        mode_buttons_frame = tk.Frame(mode_container, bg=theme["border"], relief=tk.SOLID, bd=1)
-        mode_buttons_frame.pack()
+        # Pack canvas and scrollbar
+        canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
 
+        # Main container with padding (now inside scrollable frame)
+        main_frame = ttk.Frame(scrollable_frame, padding="20")
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        # Configure grid weights
+        scrollable_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=1)
+
+        # Enable mousewheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # Store canvas for later use
+        self.canvas = canvas
+
+        # Title
+        title_label = ttk.Label(
+            main_frame,
+            text="Live Dictation App",
+            font=('Arial', 18, 'bold')
+        )
+        title_label.grid(row=0, column=0, pady=(0, 10))
+
+        # ⭐ STATUS SECTION - AT THE TOP FOR VISIBILITY!
+        status_frame = ttk.LabelFrame(main_frame, text="📊 Status", padding="15")
+        status_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        status_frame.columnconfigure(0, weight=1)
+
+        # Status indicator (big and visible)
+        self.status_label = ttk.Label(
+            status_frame,
+            text="⚪ Ready - Hold hotkey to start",
+            font=('Arial', 13, 'bold'),
+            foreground="gray"
+        )
+        self.status_label.grid(row=0, column=0, pady=10)
+
+        # API Key Section
+        api_frame = ttk.LabelFrame(main_frame, text="🔑 OpenAI API Key", padding="15")
+        api_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        api_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(api_frame, text="API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        self.api_key_entry = ttk.Entry(api_frame, width=40, show="*")
+        self.api_key_entry.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+
+        self.save_api_button = ttk.Button(
+            api_frame,
+            text="Save API Key",
+            command=self.save_api_key
+        )
+        self.save_api_button.grid(row=2, column=0, pady=5)
+
+        # API Status indicator (green = OK, red = error)
+        self.api_status_label = ttk.Label(
+            api_frame,
+            text="API Status: Not checked",
+            font=('Arial', 10),
+            foreground="gray"
+        )
+        self.api_status_label.grid(row=3, column=0, pady=5)
+
+        # Link to get API key
+        api_link_label = ttk.Label(
+            api_frame,
+            text="Get your API key from: https://platform.openai.com/api-keys",
+            font=('Arial', 9),
+            foreground="blue",
+            cursor="hand2"
+        )
+        api_link_label.grid(row=4, column=0, pady=5)
+
+        # Make the link clickable
+        def open_api_keys_url(event):
+            import webbrowser
+            webbrowser.open("https://platform.openai.com/api-keys")
+
+        api_link_label.bind("<Button-1>", open_api_keys_url)
+
+        # Cost Display Section
+        cost_frame = ttk.LabelFrame(main_frame, text="API Usage Cost", padding="15")
+        cost_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        cost_frame.columnconfigure(0, weight=1)
+
+        self.cost_label = ttk.Label(
+            cost_frame,
+            text="Total Cost: $0.0000",
+            font=('Arial', 14, 'bold'),
+            foreground='green'
+        )
+        self.cost_label.grid(row=0, column=0, pady=5)
+
+        # Price Configuration Section
+        price_frame = ttk.LabelFrame(main_frame, text="Price Configuration", padding="15")
+        price_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        price_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(price_frame, text="Price per second (USD):").grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        self.price_entry = ttk.Entry(price_frame, width=20)
+        self.price_entry.insert(0, "0.0001")  # Default price
+        self.price_entry.grid(row=1, column=0, sticky=tk.W, pady=5, padx=5)
+
+        def update_price():
+            try:
+                new_price = float(self.price_entry.get())
+                if new_price >= 0:
+                    self.price_per_second = new_price
+                else:
+                    messagebox.showerror("Error", "Price must be a positive number")
+                    self.price_entry.delete(0, tk.END)
+                    self.price_entry.insert(0, str(self.price_per_second))
+            except ValueError:
+                messagebox.showerror("Error", "Please enter a valid number")
+                self.price_entry.delete(0, tk.END)
+                self.price_entry.insert(0, str(self.price_per_second))
+
+        self.price_entry.bind('<Return>', lambda e: update_price())
+
+        update_price_button = ttk.Button(
+            price_frame,
+            text="Update Price",
+            command=update_price
+        )
+        update_price_button.grid(row=2, column=0, pady=5)
+
+        ttk.Label(
+            price_frame,
+            text="Note: Whisper API charges $0.006 per minute = $0.0001 per second",
+            font=('Arial', 8),
+            foreground='gray'
+        ).grid(row=3, column=0, pady=5)
+
+        # Recording Mode Selection Section
+        mode_frame = ttk.LabelFrame(main_frame, text="Recording Mode", padding="15")
+        mode_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        mode_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            mode_frame,
+            text="Choose your recording method:",
+            font=('Arial', 9)
+        ).grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
+
+        # Mode selection with radio buttons
         self.mode_var = tk.StringVar(value="push-to-talk")
 
-        # Push-to-Talk button
-        self.ptt_button = tk.Button(
-            mode_buttons_frame,
-            text="🎯 Push-to-Talk",
-            command=lambda: self.set_mode("push-to-talk"),
-            font=('Segoe UI', 10),
-            bg=theme["accent"],
-            fg="white",
-            relief=tk.FLAT,
-            padx=20,
-            pady=8,
-            cursor="hand2"
+        push_to_talk_radio = ttk.Radiobutton(
+            mode_frame,
+            text="🎯 Push-to-Talk (Hold hotkey to record)",
+            variable=self.mode_var,
+            value="push-to-talk",
+            command=self.on_mode_changed
         )
-        self.ptt_button.pack(side=tk.LEFT, padx=1, pady=1)
+        push_to_talk_radio.grid(row=1, column=0, sticky=tk.W, pady=5)
 
-        # Live Mode button
-        self.live_button = tk.Button(
-            mode_buttons_frame,
-            text="🔴 Live Mode",
-            command=lambda: self.set_mode("live"),
-            font=('Segoe UI', 10),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"],
-            relief=tk.FLAT,
-            padx=20,
-            pady=8,
-            cursor="hand2"
+        live_radio = ttk.Radiobutton(
+            mode_frame,
+            text="🔴 Live Mode (Always listening, API only when speaking)",
+            variable=self.mode_var,
+            value="live",
+            command=self.on_mode_changed
         )
-        self.live_button.pack(side=tk.LEFT, padx=1, pady=1)
+        live_radio.grid(row=2, column=0, sticky=tk.W, pady=5)
 
-        # Live mode control button (hidden by default)
-        self.live_control_button = tk.Button(
-            mode_container,
-            text="▶ START",
-            command=self.toggle_live_mode,
-            font=('Segoe UI', 10, 'bold'),
-            bg="#4CAF50",
-            fg="white",
-            relief=tk.FLAT,
-            padx=15,
-            pady=8,
-            cursor="hand2"
+        # Start/Stop button for live mode (initially hidden)
+        self.live_control_button = ttk.Button(
+            mode_frame,
+            text="▶ START LIVE MODE",
+            command=self.toggle_live_mode
         )
-        # Don't pack yet, will show when live mode selected
+        # Don't grid it yet, will show when live mode is selected
 
-        # Right side: API Cost
-        cost_container = tk.Frame(top_bar, bg=theme["secondary_bg"])
-        cost_container.pack(side=tk.RIGHT, padx=15, pady=10)
+        # Prompt Section (for improving transcription quality)
+        prompt_frame = ttk.LabelFrame(main_frame, text="Transcription Quality Prompt (Optional)", padding="15")
+        prompt_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        prompt_frame.columnconfigure(0, weight=1)
 
-        self.cost_label = tk.Label(
-            cost_container,
-            text="Cost: $0.0000",
-            font=('Segoe UI', 10),
-            bg=theme["secondary_bg"],
-            fg="green"
-        )
-        self.cost_label.pack()
+        ttk.Label(
+            prompt_frame,
+            text="Enter context to improve transcription quality:",
+            font=('Arial', 9)
+        ).grid(row=0, column=0, sticky=tk.W, pady=5)
 
-        # ========================================
-        # CENTER: TRANSCRIPTION AREA (Zone de Transcription)
-        # ========================================
-        transcription_frame = tk.Frame(main_container, bg=theme["border"], relief=tk.SOLID, bd=1)
-        transcription_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        ttk.Label(
+            prompt_frame,
+            text='Example: "La conversation suivante est une dictée d\'un avocat pour la constitution d\'un dossier client."',
+            font=('Arial', 8),
+            foreground='gray',
+            wraplength=500
+        ).grid(row=1, column=0, sticky=tk.W, pady=5)
 
-        # Title bar for transcription area
-        trans_title = tk.Label(
-            transcription_frame,
-            text="📝 Live Transcription",
-            font=('Segoe UI', 11, 'bold'),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"],
-            anchor=tk.W
-        )
-        trans_title.pack(fill=tk.X, padx=10, pady=8)
+        # Create a frame for the text widget and scrollbar
+        prompt_input_frame = ttk.Frame(prompt_frame)
+        prompt_input_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        prompt_input_frame.columnconfigure(0, weight=1)
 
-        # Scrollable text area
-        text_container = tk.Frame(transcription_frame, bg=theme["text_bg"])
-        text_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
-
-        # Text widget with scrollbar
-        text_scroll = tk.Scrollbar(text_container)
-        text_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.transcription_text = tk.Text(
-            text_container,
+        # Create a Text widget for multi-line prompt input
+        self.prompt_text_widget = tk.Text(
+            prompt_input_frame,
+            height=3,
+            width=60,
             wrap=tk.WORD,
-            font=('Segoe UI', 12),
-            bg=theme["text_bg"],
-            fg=theme["fg"],
-            relief=tk.FLAT,
-            padx=15,
-            pady=15,
-            yscrollcommand=text_scroll.set
+            font=('Arial', 9)
         )
-        self.transcription_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        text_scroll.config(command=self.transcription_text.yview)
+        self.prompt_text_widget.grid(row=0, column=0, sticky=(tk.W, tk.E))
 
-        # Placeholder text
-        placeholder = "Your dictated text will appear here in real-time...\n\nClick in Word, Notepad, or any application where you want to insert text."
-        self.transcription_text.insert("1.0", placeholder)
-        self.transcription_text.config(fg="gray")
+        # Scrollbar for the text widget (now properly gridded!)
+        prompt_scrollbar = ttk.Scrollbar(prompt_input_frame, orient="vertical", command=self.prompt_text_widget.yview)
+        prompt_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        self.prompt_text_widget.configure(yscrollcommand=prompt_scrollbar.set)
 
-        # ========================================
-        # BOTTOM TOOLBAR (Barre d'Outils Inférieure)
-        # ========================================
-        bottom_bar = tk.Frame(main_container, bg=theme["secondary_bg"], relief=tk.FLAT, bd=1)
-        bottom_bar.pack(fill=tk.X, pady=0)
-        bottom_bar.columnconfigure(0, weight=1)
-        bottom_bar.columnconfigure(1, weight=2)
-        bottom_bar.columnconfigure(2, weight=1)
-        bottom_bar.columnconfigure(3, weight=0)
-        bottom_bar.columnconfigure(4, weight=0)
+        def update_prompt():
+            self.prompt_text = self.prompt_text_widget.get("1.0", tk.END).strip()
+            self.save_prompt_quality()  # Auto-save on change
 
-        # === Column 0: Microphone Selection ===
-        mic_container = tk.Frame(bottom_bar, bg=theme["secondary_bg"])
-        mic_container.grid(row=0, column=0, sticky=tk.W, padx=10, pady=12)
+        # Update prompt on any key release
+        self.prompt_text_widget.bind('<KeyRelease>', lambda e: update_prompt())
 
-        mic_label = tk.Label(
-            mic_container,
-            text="🎤",
-            font=('Segoe UI', 14),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"]
+        # Custom Word Replacements Section (NEW!)
+        replacements_frame = ttk.LabelFrame(main_frame, text="🔤 Custom Word Replacements", padding="15")
+        replacements_frame.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        replacements_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            replacements_frame,
+            text="Define custom word replacements (one per line: word -> REPLACEMENT):",
+            font=('Arial', 9)
+        ).grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        ttk.Label(
+            replacements_frame,
+            text='Example: "Acadie -> ACADEE" will replace all occurrences of "Acadie" with "ACADEE"',
+            font=('Arial', 8),
+            foreground='gray',
+            wraplength=500
+        ).grid(row=1, column=0, sticky=tk.W, pady=5)
+
+        # Create a frame for the text widget and scrollbar
+        replacements_input_frame = ttk.Frame(replacements_frame)
+        replacements_input_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        replacements_input_frame.columnconfigure(0, weight=1)
+
+        # Create a Text widget for multi-line replacement rules
+        self.replacements_text_widget = tk.Text(
+            replacements_input_frame,
+            height=4,
+            width=60,
+            wrap=tk.WORD,
+            font=('Arial', 9)
         )
-        mic_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.replacements_text_widget.grid(row=0, column=0, sticky=(tk.W, tk.E))
 
-        self.mic_combo = ttk.Combobox(mic_container, state="readonly", width=20)
-        self.mic_combo.pack(side=tk.LEFT)
+        # Scrollbar for the text widget (now properly gridded!)
+        replacements_scrollbar = ttk.Scrollbar(replacements_input_frame, orient="vertical", command=self.replacements_text_widget.yview)
+        replacements_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        self.replacements_text_widget.configure(yscrollcommand=replacements_scrollbar.set)
+
+        def update_replacements():
+            """Parse the replacement rules and store them"""
+            self.custom_replacements = {}
+            rules_text = self.replacements_text_widget.get("1.0", tk.END).strip()
+
+            for line in rules_text.split('\n'):
+                line = line.strip()
+                if '->' in line:
+                    parts = line.split('->')
+                    if len(parts) == 2:
+                        source = parts[0].strip()
+                        target = parts[1].strip()
+                        if source and target:
+                            self.custom_replacements[source] = target
+
+            self.save_custom_words()  # Auto-save on change
+
+        # Update replacements on any key release
+        self.replacements_text_widget.bind('<KeyRelease>', lambda e: update_replacements())
+
+        # Microphone Selection Section
+        mic_frame = ttk.LabelFrame(main_frame, text="Microphone Selection", padding="15")
+        mic_frame.grid(row=10, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        # Store the mode_frame for later use in on_mode_changed
+        self.mode_frame = mode_frame
+        mic_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(mic_frame, text="Select Microphone:").grid(row=0, column=0, sticky=tk.W, pady=5)
+
+        self.mic_combo = ttk.Combobox(mic_frame, state="readonly", width=37)
+        self.mic_combo.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
         self.mic_combo.bind('<<ComboboxSelected>>', self.on_mic_changed)
 
-        # Refresh button
-        refresh_btn = tk.Button(
-            mic_container,
-            text="🔄",
-            command=self.load_audio_devices,
-            font=('Segoe UI', 10),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"],
-            relief=tk.FLAT,
-            cursor="hand2",
-            padx=5
+        refresh_button = ttk.Button(
+            mic_frame,
+            text="🔄 Refresh Devices",
+            command=self.load_audio_devices
         )
-        refresh_btn.pack(side=tk.LEFT, padx=5)
+        refresh_button.grid(row=2, column=0, pady=5)
 
-        # === Column 1: VU Meter (Audio Level) ===
-        vu_container = tk.Frame(bottom_bar, bg=theme["secondary_bg"])
-        vu_container.grid(row=0, column=1, sticky=tk.EW, padx=20, pady=12)
+        # Language Selection Section
+        lang_frame = ttk.LabelFrame(main_frame, text="Language Selection", padding="15")
+        lang_frame.grid(row=8, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        lang_frame.columnconfigure(0, weight=1)
 
-        # Level label
-        self.level_label = tk.Label(
-            vu_container,
-            text="🔇 No input",
-            font=('Segoe UI', 9),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"]
-        )
-        self.level_label.pack(anchor=tk.W)
+        ttk.Label(lang_frame, text="Dictation Language:").grid(row=0, column=0, sticky=tk.W, pady=5)
 
-        # Progress bar (VU meter)
-        self.level_bar = ttk.Progressbar(
-            vu_container,
-            mode='determinate',
-            maximum=100,
-            length=300
-        )
-        self.level_bar.pack(fill=tk.X, pady=(5, 0))
-
-        # === Column 2: Language Selection ===
-        lang_container = tk.Frame(bottom_bar, bg=theme["secondary_bg"])
-        lang_container.grid(row=0, column=2, sticky=tk.W, padx=10, pady=12)
-
-        lang_label = tk.Label(
-            lang_container,
-            text="🌍",
-            font=('Segoe UI', 14),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"]
-        )
-        lang_label.pack(side=tk.LEFT, padx=(0, 5))
-
+        # Language options
         languages = [
             ("Français", "fr"),
             ("English", "en"),
@@ -339,10 +452,10 @@ class LiveDictationApp:
             ("Italiano", "it")
         ]
 
-        self.language_combo = ttk.Combobox(lang_container, state="readonly", width=12)
+        self.language_combo = ttk.Combobox(lang_frame, state="readonly", width=37)
         self.language_combo['values'] = [lang[0] for lang in languages]
         self.language_combo.current(0)  # Default: Français
-        self.language_combo.pack(side=tk.LEFT)
+        self.language_combo.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
 
         # Store language codes
         self.language_codes = {lang[0]: lang[1] for lang in languages}
@@ -353,352 +466,14 @@ class LiveDictationApp:
 
         self.language_combo.bind('<<ComboboxSelected>>', on_language_changed)
 
-        # === Column 3: Context/Prompt Icon ===
-        context_btn = tk.Button(
-            bottom_bar,
-            text="🎯",
-            command=self.show_context_popover,
-            font=('Segoe UI', 16),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"],
-            relief=tk.FLAT,
-            cursor="hand2",
-            padx=8,
-            pady=5
-        )
-        context_btn.grid(row=0, column=3, padx=5, pady=12)
+        # Hotkey Configuration Section
+        hotkey_frame = ttk.LabelFrame(main_frame, text="Push-to-Talk Hotkey", padding="15")
+        hotkey_frame.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        hotkey_frame.columnconfigure(0, weight=1)
 
-        # Tooltip
-        self.create_tooltip(context_btn, "Quality Context\n(Improve transcription accuracy)")
+        ttk.Label(hotkey_frame, text="Hold this key combination to record:").grid(row=0, column=0, sticky=tk.W, pady=5)
 
-        # === Column 4: Settings Icon ===
-        settings_btn = tk.Button(
-            bottom_bar,
-            text="⚙️",
-            command=self.open_settings,
-            font=('Segoe UI', 16),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"],
-            relief=tk.FLAT,
-            cursor="hand2",
-            padx=8,
-            pady=5
-        )
-        settings_btn.grid(row=0, column=4, padx=(5, 10), pady=12)
-
-        # Tooltip
-        self.create_tooltip(settings_btn, "Settings\n(API, Hotkeys, Replacements)")
-
-        # === Column 5: Theme Toggle ===
-        theme_btn = tk.Button(
-            bottom_bar,
-            text="🌙" if self.current_theme == "light" else "☀️",
-            command=self.toggle_theme,
-            font=('Segoe UI', 14),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"],
-            relief=tk.FLAT,
-            cursor="hand2",
-            padx=8,
-            pady=5
-        )
-        theme_btn.grid(row=0, column=5, padx=(5, 10), pady=12)
-        self.theme_toggle_btn = theme_btn
-
-        # Tooltip
-        self.create_tooltip(theme_btn, "Toggle Dark/Light Theme")
-
-        # Initialize mode display
-        self.update_mode_buttons()
-
-    def set_mode(self, mode):
-        """Switch between push-to-talk and live mode"""
-        self.recording_mode = mode
-        self.mode_var.set(mode)
-        self.update_mode_buttons()
-        self.on_mode_changed()
-
-    def update_mode_buttons(self):
-        """Update the visual state of mode buttons"""
-        theme = self.theme_colors[self.current_theme]
-
-        if self.recording_mode == "push-to-talk":
-            # Highlight push-to-talk
-            self.ptt_button.config(bg=theme["accent"], fg="white")
-            self.live_button.config(bg=theme["secondary_bg"], fg=theme["fg"])
-            # Hide live control button
-            self.live_control_button.pack_forget()
-        else:
-            # Highlight live mode
-            self.ptt_button.config(bg=theme["secondary_bg"], fg=theme["fg"])
-            self.live_button.config(bg=theme["accent"], fg="white")
-            # Show live control button (below mode selector)
-            # Actually, let's keep it simple and integrated
-
-    def create_tooltip(self, widget, text):
-        """Create a simple tooltip for a widget"""
-        def on_enter(event):
-            tooltip = tk.Toplevel()
-            tooltip.wm_overrideredirect(True)
-            tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
-            label = tk.Label(tooltip, text=text, bg="#FFFFE0", relief=tk.SOLID, borderwidth=1, font=('Segoe UI', 9))
-            label.pack()
-            widget.tooltip = tooltip
-
-        def on_leave(event):
-            if hasattr(widget, 'tooltip'):
-                widget.tooltip.destroy()
-                del widget.tooltip
-
-        widget.bind('<Enter>', on_enter)
-        widget.bind('<Leave>', on_leave)
-
-    def show_context_popover(self):
-        """Show a popover for entering transcription quality context"""
-        # Create popup window
-        popup = tk.Toplevel(self.root)
-        popup.title("Transcription Quality Context")
-        popup.geometry("500x250")
-        popup.transient(self.root)
-        popup.grab_set()
-
-        theme = self.theme_colors[self.current_theme]
-        popup.configure(bg=theme["bg"])
-
-        # Title
-        title = tk.Label(
-            popup,
-            text="📝 Quality Context (Optional)",
-            font=('Segoe UI', 12, 'bold'),
-            bg=theme["bg"],
-            fg=theme["fg"]
-        )
-        title.pack(pady=10, padx=15, anchor=tk.W)
-
-        # Info
-        info = tk.Label(
-            popup,
-            text="Provide context to improve transcription accuracy:",
-            font=('Segoe UI', 9),
-            bg=theme["bg"],
-            fg="gray"
-        )
-        info.pack(pady=(0, 5), padx=15, anchor=tk.W)
-
-        # Example
-        example = tk.Label(
-            popup,
-            text='Example: "Medical dictation about patient diagnosis"',
-            font=('Segoe UI', 9, 'italic'),
-            bg=theme["bg"],
-            fg="gray"
-        )
-        example.pack(pady=(0, 10), padx=15, anchor=tk.W)
-
-        # Text widget
-        text_frame = tk.Frame(popup, bg=theme["border"], relief=tk.SOLID, bd=1)
-        text_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 10))
-
-        text_widget = tk.Text(
-            text_frame,
-            wrap=tk.WORD,
-            font=('Segoe UI', 10),
-            bg=theme["text_bg"],
-            fg=theme["fg"],
-            relief=tk.FLAT,
-            height=5
-        )
-        text_widget.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-
-        # Load current prompt
-        text_widget.insert("1.0", self.prompt_text)
-
-        # Buttons
-        btn_frame = tk.Frame(popup, bg=theme["bg"])
-        btn_frame.pack(fill=tk.X, padx=15, pady=(0, 15))
-
-        def save_and_close():
-            self.prompt_text = text_widget.get("1.0", tk.END).strip()
-            self.save_prompt_quality()
-            popup.destroy()
-
-        save_btn = tk.Button(
-            btn_frame,
-            text="✓ Save",
-            command=save_and_close,
-            font=('Segoe UI', 10, 'bold'),
-            bg=theme["accent"],
-            fg="white",
-            relief=tk.FLAT,
-            padx=20,
-            pady=8,
-            cursor="hand2"
-        )
-        save_btn.pack(side=tk.RIGHT, padx=5)
-
-        cancel_btn = tk.Button(
-            btn_frame,
-            text="✗ Cancel",
-            command=popup.destroy,
-            font=('Segoe UI', 10),
-            bg=theme["secondary_bg"],
-            fg=theme["fg"],
-            relief=tk.FLAT,
-            padx=20,
-            pady=8,
-            cursor="hand2"
-        )
-        cancel_btn.pack(side=tk.RIGHT)
-
-    def open_settings(self):
-        """Open the settings panel (modal window)"""
-        if self.settings_window is not None and self.settings_window.winfo_exists():
-            # Settings already open, bring to front
-            self.settings_window.lift()
-            return
-
-        # Create settings window
-        settings = tk.Toplevel(self.root)
-        settings.title("Settings")
-        settings.geometry("650x700")
-        settings.transient(self.root)
-        settings.grab_set()
-        self.settings_window = settings
-
-        theme = self.theme_colors[self.current_theme]
-        settings.configure(bg=theme["bg"])
-
-        # Create notebook (tabs)
-        notebook = ttk.Notebook(settings)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
-
-        # === TAB 1: API & Billing ===
-        api_tab = tk.Frame(notebook, bg=theme["bg"])
-        notebook.add(api_tab, text="🔑 API & Billing")
-
-        # Scrollable frame for API tab
-        api_canvas = tk.Canvas(api_tab, bg=theme["bg"], highlightthickness=0)
-        api_scrollbar = ttk.Scrollbar(api_tab, orient="vertical", command=api_canvas.yview)
-        api_scrollable = tk.Frame(api_canvas, bg=theme["bg"])
-
-        api_scrollable.bind(
-            "<Configure>",
-            lambda e: api_canvas.configure(scrollregion=api_canvas.bbox("all"))
-        )
-
-        api_canvas.create_window((0, 0), window=api_scrollable, anchor="nw")
-        api_canvas.configure(yscrollcommand=api_scrollbar.set)
-
-        api_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        api_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # API Key section
-        self._create_settings_section(api_scrollable, "OpenAI API Key", theme)
-
-        key_frame = tk.Frame(api_scrollable, bg=theme["bg"])
-        key_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
-
-        self.api_key_entry = ttk.Entry(key_frame, width=50, show="*")
-        self.api_key_entry.pack(side=tk.LEFT, padx=(0, 10))
-        if self.api_key:
-            self.api_key_entry.insert(0, self.api_key)
-
-        save_key_btn = tk.Button(
-            key_frame,
-            text="Save & Test",
-            command=self.save_api_key,
-            bg=theme["accent"],
-            fg="white",
-            relief=tk.FLAT,
-            padx=15,
-            pady=5,
-            cursor="hand2"
-        )
-        save_key_btn.pack(side=tk.LEFT)
-
-        # API Status
-        self.api_status_label = tk.Label(
-            api_scrollable,
-            text="API Status: Not tested",
-            font=('Segoe UI', 9),
-            bg=theme["bg"],
-            fg="gray"
-        )
-        self.api_status_label.pack(padx=20, pady=(0, 10), anchor=tk.W)
-
-        # Get API Key link
-        link_label = tk.Label(
-            api_scrollable,
-            text="Get your API key from: https://platform.openai.com/api-keys",
-            font=('Segoe UI', 9, 'underline'),
-            bg=theme["bg"],
-            fg=theme["accent"],
-            cursor="hand2"
-        )
-        link_label.pack(padx=20, pady=(0, 20), anchor=tk.W)
-        link_label.bind("<Button-1>", lambda e: self.open_api_keys_page())
-
-        # Price Configuration section
-        self._create_settings_section(api_scrollable, "Price Configuration", theme)
-
-        price_frame = tk.Frame(api_scrollable, bg=theme["bg"])
-        price_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
-
-        price_label = tk.Label(
-            price_frame,
-            text="Price per second (USD):",
-            font=('Segoe UI', 9),
-            bg=theme["bg"],
-            fg=theme["fg"]
-        )
-        price_label.pack(side=tk.LEFT, padx=(0, 10))
-
-        self.price_entry = ttk.Entry(price_frame, width=15)
-        self.price_entry.insert(0, str(self.price_per_second))
-        self.price_entry.pack(side=tk.LEFT, padx=(0, 10))
-
-        def update_price():
-            try:
-                new_price = float(self.price_entry.get())
-                if new_price >= 0:
-                    self.price_per_second = new_price
-                else:
-                    messagebox.showerror("Error", "Price must be positive")
-            except ValueError:
-                messagebox.showerror("Error", "Invalid number")
-
-        update_price_btn = tk.Button(
-            price_frame,
-            text="Update",
-            command=update_price,
-            bg=theme["accent"],
-            fg="white",
-            relief=tk.FLAT,
-            padx=15,
-            pady=5,
-            cursor="hand2"
-        )
-        update_price_btn.pack(side=tk.LEFT)
-
-        price_note = tk.Label(
-            api_scrollable,
-            text="Note: Whisper API charges $0.006/minute = $0.0001/second",
-            font=('Segoe UI', 8),
-            bg=theme["bg"],
-            fg="gray"
-        )
-        price_note.pack(padx=20, pady=(0, 20), anchor=tk.W)
-
-        # === TAB 2: Controls & Inputs ===
-        controls_tab = tk.Frame(notebook, bg=theme["bg"])
-        notebook.add(controls_tab, text="🎮 Controls")
-
-        # Hotkey Configuration section
-        self._create_settings_section(controls_tab, "Push-to-Talk Hotkey", theme)
-
-        hotkey_frame = tk.Frame(controls_tab, bg=theme["bg"])
-        hotkey_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
-
+        # Hotkey options
         hotkey_options = [
             "ctrl+shift (Default)",
             "ctrl+alt",
@@ -707,130 +482,72 @@ class LiveDictationApp:
             "alt+space",
         ]
 
-        self.hotkey_combo = ttk.Combobox(hotkey_frame, state="readonly", width=25)
+        self.hotkey_combo = ttk.Combobox(hotkey_frame, state="readonly", width=37)
         self.hotkey_combo['values'] = hotkey_options
-        self.hotkey_combo.current(0)
-        self.hotkey_combo.pack()
+        self.hotkey_combo.current(0)  # Default: ctrl+shift
+        self.hotkey_combo.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
 
         def on_hotkey_changed(event=None):
             selected = self.hotkey_combo.get()
+            # Extract the actual combination (remove " (Default)")
             self.hotkey_combination = selected.split(' (')[0]
+            # Re-register hotkey
             self.unregister_hotkey()
             self.register_hotkey()
 
         self.hotkey_combo.bind('<<ComboboxSelected>>', on_hotkey_changed)
 
-        # === TAB 3: Transcription Refinement ===
-        refine_tab = tk.Frame(notebook, bg=theme["bg"])
-        notebook.add(refine_tab, text="✨ Refinement")
+        # Audio Level Meter Section
+        level_frame = ttk.LabelFrame(main_frame, text="Microphone Level", padding="15")
+        level_frame.grid(row=11, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        level_frame.columnconfigure(0, weight=1)
 
-        # Custom Word Replacements section
-        self._create_settings_section(refine_tab, "Custom Word Replacements", theme)
+        ttk.Label(level_frame, text="Check if microphone is working:").grid(row=0, column=0, sticky=tk.W, pady=5)
 
-        replace_info = tk.Label(
-            refine_tab,
-            text="Define custom replacements (one per line: word -> REPLACEMENT)",
-            font=('Segoe UI', 9),
-            bg=theme["bg"],
-            fg="gray"
+        # Audio level progress bar
+        self.level_bar = ttk.Progressbar(
+            level_frame,
+            mode='determinate',
+            maximum=100,
+            length=400
         )
-        replace_info.pack(padx=20, pady=(0, 5), anchor=tk.W)
+        self.level_bar.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
 
-        replace_example = tk.Label(
-            refine_tab,
-            text='Example: "Acadie -> ACADEE"',
-            font=('Segoe UI', 9, 'italic'),
-            bg=theme["bg"],
-            fg="gray"
+        # Level text
+        self.level_label = ttk.Label(
+            level_frame,
+            text="🔇 No input detected",
+            font=('Arial', 9)
         )
-        replace_example.pack(padx=20, pady=(0, 10), anchor=tk.W)
+        self.level_label.grid(row=2, column=0, pady=5)
 
-        # Text widget for replacements
-        replace_frame = tk.Frame(refine_tab, bg=theme["border"], relief=tk.SOLID, bd=1)
-        replace_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 15))
+        # Instructions
+        instructions_frame = ttk.Frame(main_frame)
+        instructions_frame.grid(row=12, column=0, sticky=(tk.W, tk.E))
 
-        self.replacements_text_widget = tk.Text(
-            replace_frame,
-            wrap=tk.WORD,
-            font=('Consolas', 10),
-            bg=theme["text_bg"],
-            fg=theme["fg"],
-            relief=tk.FLAT,
-            height=15
+        instructions = (
+            "Instructions:\n"
+            "1. Configure the price per second (default: $0.0001)\n"
+            "2. Enter your OpenAI API key and click Save\n"
+            "3. (Optional) Add a prompt to improve transcription quality\n"
+            "4. (Optional) Add custom word replacements (e.g., Acadie -> ACADEE)\n"
+            "5. Select your microphone and check the level meter\n"
+            "6. Select your dictation language (Français, English, etc.)\n"
+            "7. Select your push-to-talk hotkey (default: Ctrl+Shift)\n"
+            "8. Open Word/Notepad and click where you want text\n"
+            "9. HOLD your hotkey and speak in your selected language\n"
+            "10. RELEASE the hotkey when done speaking\n"
+            "11. Monitor your API usage cost in real-time"
         )
-        self.replacements_text_widget.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-
-        def update_replacements():
-            self.custom_replacements = {}
-            rules_text = self.replacements_text_widget.get("1.0", tk.END).strip()
-            for line in rules_text.split('\n'):
-                line = line.strip()
-                if '->' in line:
-                    parts = line.split('->')
-                    if len(parts) == 2:
-                        source = parts[0].strip()
-                        target = parts[1].strip()
-                        if source and target:
-                            self.custom_replacements[source] = target
-            self.save_custom_words()
-
-        self.replacements_text_widget.bind('<KeyRelease>', lambda e: update_replacements())
-
-        # Close button
-        close_btn_frame = tk.Frame(settings, bg=theme["bg"])
-        close_btn_frame.pack(fill=tk.X, padx=15, pady=(0, 15))
-
-        close_btn = tk.Button(
-            close_btn_frame,
-            text="✓ Close",
-            command=settings.destroy,
-            font=('Segoe UI', 11, 'bold'),
-            bg=theme["accent"],
-            fg="white",
-            relief=tk.FLAT,
-            padx=30,
-            pady=10,
-            cursor="hand2"
+        info_label = ttk.Label(
+            instructions_frame,
+            text=instructions,
+            wraplength=500,
+            foreground='gray',
+            font=('Arial', 9),
+            justify=tk.LEFT
         )
-        close_btn.pack()
-
-    def _create_settings_section(self, parent, title, theme):
-        """Helper to create a settings section title"""
-        section_frame = tk.Frame(parent, bg=theme["secondary_bg"], height=2)
-        section_frame.pack(fill=tk.X, padx=10, pady=(20, 10))
-
-        title_label = tk.Label(
-            parent,
-            text=title,
-            font=('Segoe UI', 11, 'bold'),
-            bg=theme["bg"],
-            fg=theme["fg"]
-        )
-        title_label.pack(padx=20, pady=(0, 10), anchor=tk.W)
-
-    def toggle_theme(self):
-        """Toggle between dark and light theme"""
-        self.current_theme = "dark" if self.current_theme == "light" else "light"
-
-        # Save theme preference
-        try:
-            with open(self.theme_file, 'w') as f:
-                f.write(self.current_theme)
-        except:
-            pass
-
-        # Update theme toggle button icon
-        self.theme_toggle_btn.config(text="🌙" if self.current_theme == "light" else "☀️")
-
-        # Recreate GUI with new theme
-        for widget in self.root.winfo_children():
-            widget.destroy()
-        self.setup_gui()
-
-    def open_api_keys_page(self):
-        """Open OpenAI API keys page in browser"""
-        import webbrowser
-        webbrowser.open("https://platform.openai.com/api-keys")
+        info_label.grid(row=0, column=0, sticky=tk.W)
 
     def load_audio_devices(self):
         """Load available audio input devices"""
