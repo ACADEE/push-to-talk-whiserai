@@ -22,6 +22,8 @@ A Windows desktop application that enables voice-to-text dictation directly into
 
 ## Installation
 
+> **Windows Users:** For detailed Windows installation instructions and troubleshooting (especially if you encounter MySQL-python errors), see [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md)
+
 ### Option 1: Run from Source (Development)
 
 1. **Clone the repository**:
@@ -30,17 +32,28 @@ A Windows desktop application that enables voice-to-text dictation directly into
    cd push-to-talk-whiserai
    ```
 
-2. **Install Python dependencies**:
+2. **Create a virtual environment (recommended)**:
+   ```bash
+   # Windows
+   python -m venv venv
+   venv\Scripts\activate
+
+   # Linux/Mac
+   python -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install Python dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Configure your API key**:
+4. **Configure your API key**:
    - Copy `api_key.txt.template` to `api_key.txt`
    - Edit `api_key.txt` and paste your OpenAI API key
    - Get your API key from: https://platform.openai.com/api-keys
 
-4. **Run the application**:
+5. **Run the application**:
    ```bash
    python dictation_app.py
    ```
@@ -49,8 +62,9 @@ A Windows desktop application that enables voice-to-text dictation directly into
 
 1. Download the latest release from the releases page
 2. Extract the ZIP file to a folder of your choice
-3. Configure your API key (see Configuration section below)
-4. Run `dictation_app.exe`
+3. Follow instructions in `SETUP.txt`
+4. Configure your API key
+5. Run `DictationApp.exe`
 
 ## Configuration
 
@@ -150,23 +164,59 @@ Edit `settings.json` to customize application behavior:
 
 To build a standalone Windows executable:
 
-```bash
-python build.py
-```
+1. **Install dependencies** (including PyInstaller):
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-This will create:
-- `dist/dictation_app.exe` - Standalone executable
-- `dist/DictationApp/` - Folder with all dependencies
+2. **Run the build script**:
+   ```bash
+   python build.py
+   ```
 
-You can distribute the entire `dist/DictationApp/` folder or just the executable if you use the `--onefile` option.
+3. **Find your built application**:
+   ```
+   dist/DictationApp/
+   ├── DictationApp.exe          # Main executable
+   ├── SETUP.txt                  # Setup instructions
+   ├── README.md                  # Documentation
+   ├── api_key.txt.template       # Rename and add your API key
+   ├── custom_dictionary.txt      # Word mappings
+   ├── settings.json              # Settings
+   └── [dependency files]         # Required DLLs
+   ```
+
+4. **Distribute the entire `dist/DictationApp/` folder**
+   - Zip the folder for easy sharing
+   - Users extract and follow `SETUP.txt`
+   - They add their own API key
+   - Run `DictationApp.exe`
+
+**Note:** The build uses `--onedir` mode (not `--onefile`) to ensure config files are easily accessible and editable by users.
 
 ## Troubleshooting
+
+> **Windows Users:** For comprehensive troubleshooting, see [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md)
 
 ### Application won't start
 - **Check Python version**: Must be 3.8 or higher
 - **Install dependencies**: Run `pip install -r requirements.txt`
-- **MySQL-python error**: If you see errors about MySQL-python or config-win.h, this is NOT required for this application. Make sure you're in the correct project directory and using the correct requirements.txt file. This application does not use MySQL.
+- **Virtual environment**: Use a clean virtual environment to avoid conflicts
 - **Administrator rights**: Some hotkeys may require running as administrator
+
+### MySQL-python or config-win.h Error
+⚠️ **This is NOT a dependency of this project!**
+
+If you see errors about `MySQL-python` or `config-win.h`:
+1. Verify you're in the correct directory (should contain `dictation_app.py`)
+2. Check your `requirements.txt` - it should NOT contain `MySQL-python`
+3. Create a fresh virtual environment:
+   ```bash
+   python -m venv venv_clean
+   venv_clean\Scripts\activate  # Windows
+   pip install -r requirements.txt
+   ```
+4. See [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) for detailed solutions
 
 ### No transcription happening
 - **Verify API key**: Ensure `api_key.txt` contains a valid OpenAI API key
@@ -284,6 +334,20 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 For issues, questions, or feature requests, please open an issue on GitHub.
 
 ## Changelog
+
+### Version 1.1.1 (Build & Installation Update)
+- Improved build.py script for better .exe generation
+  - Changed to --onedir mode for easier config file access
+  - Added --add-data flags to include config files
+  - Enhanced SETUP.txt with detailed instructions
+  - Better build output and file organization
+- Added comprehensive INSTALL_WINDOWS.md guide
+  - Detailed troubleshooting for MySQL-python error
+  - Step-by-step installation instructions
+  - Virtual environment setup guide
+  - Build and distribution instructions
+- Updated README.md with build and installation improvements
+- Config files (api_key.txt, custom_dictionary.txt, settings.json) are now easily accessible in built .exe
 
 ### Version 1.1.0 (Translation Update)
 - Added multi-language translation support (French to EN/DE/ES/IT)

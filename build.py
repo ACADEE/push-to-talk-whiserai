@@ -32,8 +32,12 @@ def main():
         "pyinstaller",
         "--name", app_name,
         "--windowed",  # No console window
-        "--onefile",   # Single executable
+        # Using --onedir (default) instead of --onefile to easily access config files
+        "--add-data", "api_key.txt.template;.",  # Include template file
+        "--add-data", "custom_dictionary.txt;.",  # Include dictionary file
+        "--add-data", "settings.json;.",  # Include settings file
         "--icon=NONE", # No icon (can add later)
+        "--clean",     # Clean PyInstaller cache
         main_script
     ]
 
@@ -52,21 +56,18 @@ def main():
     print("Build successful!")
     print("=" * 60)
 
-    # Create distribution folder
+    # The dist folder structure with --onedir:
+    # dist/DictationApp/ contains the .exe and all dependencies
     dist_dir = Path("dist")
-    release_dir = dist_dir / "release"
+    app_dir = dist_dir / app_name
 
-    if release_dir.exists():
-        shutil.rmtree(release_dir)
-    release_dir.mkdir(parents=True, exist_ok=True)
+    if not app_dir.exists():
+        print(f"\nError: Build directory {app_dir} not found!")
+        sys.exit(1)
 
-    # Copy executable
-    exe_file = dist_dir / f"{app_name}.exe"
-    if exe_file.exists():
-        shutil.copy(exe_file, release_dir / f"{app_name}.exe")
-        print(f"\nExecutable: {release_dir / f'{app_name}.exe'}")
+    print(f"\nApplication built in: {app_dir.absolute()}")
 
-    # Copy configuration templates
+    # Copy additional configuration files to the app directory
     files_to_copy = [
         "api_key.txt.template",
         "custom_dictionary.txt",
@@ -74,11 +75,12 @@ def main():
         "README.md"
     ]
 
-    print("\nCopying configuration files...")
+    print("\nCopying additional configuration files to app directory...")
     for file in files_to_copy:
         src = Path(file)
-        if src.exists():
-            shutil.copy(src, release_dir / file)
+        dest = app_dir / file
+        if src.exists() and not dest.exists():
+            shutil.copy(src, dest)
             print(f"  - {file}")
 
     # Create setup instructions
@@ -86,29 +88,51 @@ def main():
 SETUP INSTRUCTIONS
 ==================
 
+FIRST TIME SETUP:
 1. Rename 'api_key.txt.template' to 'api_key.txt'
 2. Edit 'api_key.txt' and add your OpenAI API key
-3. Customize 'custom_dictionary.txt' with your own word mappings
-4. Run 'DictationApp.exe'
+   Get your key from: https://platform.openai.com/api-keys
+3. Customize 'custom_dictionary.txt' with your own word mappings (optional)
+4. Adjust 'settings.json' if needed (optional)
+
+RUNNING THE APPLICATION:
+- Double-click 'DictationApp.exe'
+- The app will appear in your system tray (look for a gray circle icon)
+- Right-click the tray icon to:
+  * Select output language (French, English, German, Spanish, Italian)
+  * Reload dictionary or API key
+  * Exit the application
+
+USING THE DICTATION:
+1. Open any application where you want to type
+2. Place your cursor where you want the text
+3. Hold down the hotkey (default: Right Ctrl)
+4. Speak clearly into your microphone
+5. Release the hotkey when done
+6. Wait for the transcribed text to appear
 
 For detailed instructions, see README.md
 """
 
-    with open(release_dir / "SETUP.txt", "w") as f:
+    with open(app_dir / "SETUP.txt", "w") as f:
         f.write(setup_instructions)
 
     print("\n" + "=" * 60)
-    print("Release package created!")
+    print("Application package created!")
     print("=" * 60)
-    print(f"\nLocation: {release_dir.absolute()}")
-    print("\nContents:")
-    for file in release_dir.iterdir():
-        print(f"  - {file.name}")
+    print(f"\nLocation: {app_dir.absolute()}")
+    print("\nMain files:")
+    print(f"  - DictationApp.exe (main executable)")
+    print(f"  - SETUP.txt (setup instructions)")
+    print(f"  - README.md (full documentation)")
+    print(f"  - api_key.txt.template (rename and add your API key)")
+    print(f"  - custom_dictionary.txt (optional word mappings)")
+    print(f"  - settings.json (application settings)")
 
     print("\n" + "=" * 60)
     print("Next steps:")
     print("=" * 60)
-    print("1. Navigate to the release folder")
+    print("1. Navigate to the folder above")
     print("2. Follow instructions in SETUP.txt")
     print("3. Run DictationApp.exe")
     print("\nBuild complete!")
