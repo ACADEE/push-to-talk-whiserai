@@ -2,5 +2,6 @@
   "hotkey": "right ctrl",
   "sample_rate": 16000,
   "channels": 1,
-  "audio_device": null
+  "audio_device": null,
+  "output_language": "fr"
 }
