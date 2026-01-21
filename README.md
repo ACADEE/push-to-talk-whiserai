@@ -5,11 +5,13 @@ A Windows desktop application that enables voice-to-text dictation directly into
 ## Features
 
 - **Push-to-Talk Recording**: Hold a configurable hotkey to record audio, release to transcribe
+- **Multi-Language Translation**: Speak in French and get output in French, English, German, Spanish, or Italian
 - **Universal Compatibility**: Works with any Windows application (Word, Notepad, browsers, etc.)
 - **Custom Dictionary**: Define custom phonetic mappings for specialized terms, acronyms, and brand names
-- **System Tray Integration**: Minimal UI that runs in the background
+- **System Tray Integration**: Minimal UI that runs in the background with language selection menu
 - **Real-time Feedback**: Visual indicators for recording and processing states
 - **OpenAI Whisper API**: Industry-leading speech recognition accuracy
+- **Smart Translation**: Powered by GPT-4o-mini for natural, context-aware translations
 
 ## Requirements
 
@@ -94,16 +96,24 @@ Edit `settings.json` to customize application behavior:
   "hotkey": "right ctrl",
   "sample_rate": 16000,
   "channels": 1,
-  "audio_device": null
+  "audio_device": null,
+  "output_language": "fr"
 }
 ```
 
-**Available hotkeys**:
-- `right ctrl` or `left ctrl`
-- `right shift` or `left shift`
-- `right alt` or `left alt`
-- Function keys: `f1`, `f2`, etc.
-- Or any key name supported by the `keyboard` library
+**Available settings**:
+- **hotkey**: The key to press for recording
+  - `right ctrl` or `left ctrl`
+  - `right shift` or `left shift`
+  - `right alt` or `left alt`
+  - Function keys: `f1`, `f2`, etc.
+  - Or any key name supported by the `keyboard` library
+- **output_language**: Language for the transcribed text (default: `fr`)
+  - `fr` - Français (no translation)
+  - `en` - English
+  - `de` - Deutsch (German)
+  - `es` - Español (Spanish)
+  - `it` - Italiano (Italian)
 
 ## Usage
 
@@ -125,10 +135,15 @@ Edit `settings.json` to customize application behavior:
    - Wait for the transcribed text to appear
 
 4. **System tray menu** (right-click the tray icon):
+   - **Output Language**: Select your desired output language
+     - Français (FR) - Speak and output in French (no translation)
+     - English (EN) - Speak in French, output in English
+     - Deutsch (DE) - Speak in French, output in German
+     - Español (ES) - Speak in French, output in Spanish
+     - Italiano (IT) - Speak in French, output in Italian
    - **Reload Dictionary**: Reload custom dictionary without restarting
    - **Reload API Key**: Reload API key without restarting
-   - **Settings**: Open settings (coming soon)
-   - **About**: Show application information
+   - **About**: Show application information and current language
    - **Exit**: Close the application
 
 ## Building Executable
@@ -150,6 +165,7 @@ You can distribute the entire `dist/DictationApp/` folder or just the executable
 ### Application won't start
 - **Check Python version**: Must be 3.8 or higher
 - **Install dependencies**: Run `pip install -r requirements.txt`
+- **MySQL-python error**: If you see errors about MySQL-python or config-win.h, this is NOT required for this application. Make sure you're in the correct project directory and using the correct requirements.txt file. This application does not use MySQL.
 - **Administrator rights**: Some hotkeys may require running as administrator
 
 ### No transcription happening
@@ -189,9 +205,12 @@ You can distribute the entire `dist/DictationApp/` folder or just the executable
 
 ## API Costs
 
-OpenAI Whisper API pricing (as of 2024):
-- $0.006 per minute of audio
-- Example: 100 minutes of dictation = $0.60
+OpenAI API pricing (as of 2024):
+- **Whisper API**: $0.006 per minute of audio
+- **GPT-4o-mini** (for translation): ~$0.00015 per request (input) + ~$0.0006 per response (output)
+- Example costs:
+  - 100 minutes of French dictation (no translation): ~$0.60
+  - 100 minutes with translation to English: ~$0.60 + ~$0.08 = ~$0.68
 
 Monitor your usage at: https://platform.openai.com/usage
 
@@ -205,10 +224,11 @@ Monitor your usage at: https://platform.openai.com/usage
 ## Known Limitations
 
 - **Windows only**: This application is designed specifically for Windows
-- **Internet required**: Requires internet connection for Whisper API
+- **Internet required**: Requires internet connection for Whisper API and translation
 - **Hotkey conflicts**: May conflict with other applications using the same hotkey
-- **API latency**: Transcription speed depends on internet connection and API response time
-- **Language support**: Currently configured for English (can be modified in code)
+- **API latency**: Transcription and translation speed depends on internet connection and API response time
+- **Input language**: Currently configured for French audio input (Whisper transcription)
+- **Translation quality**: Translation quality depends on context and may vary
 
 ## Project Structure
 
@@ -241,7 +261,8 @@ python dictation_app.py
 
 - **ConfigManager**: Handles loading configuration files
 - **AudioRecorder**: Manages microphone recording
-- **WhisperTranscriber**: Interfaces with OpenAI Whisper API
+- **WhisperTranscriber**: Interfaces with OpenAI Whisper API for speech-to-text
+- **Translator**: Handles translation using OpenAI GPT-4o-mini API
 - **DictionaryReplacer**: Applies custom dictionary replacements
 - **DictationApp**: Main application orchestration and UI
 
@@ -263,6 +284,14 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 For issues, questions, or feature requests, please open an issue on GitHub.
 
 ## Changelog
+
+### Version 1.1.0 (Translation Update)
+- Added multi-language translation support (French to EN/DE/ES/IT)
+- Output language selection via system tray menu
+- GPT-4o-mini integration for natural translations
+- Updated settings.json with output_language parameter
+- Enhanced system tray menu with language options
+- Real-time language switching without restart
 
 ### Version 1.0.0 (Initial Release)
 - Push-to-talk recording with configurable hotkey
