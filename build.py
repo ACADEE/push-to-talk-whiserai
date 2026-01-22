@@ -36,6 +36,7 @@ def main():
         "--add-data", "api_key.txt.template;.",  # Include template file
         "--add-data", "custom_dictionary.txt;.",  # Include dictionary file
         "--add-data", "settings.json;.",  # Include settings file
+        "--add-data", "translation_prompt.txt;.",  # Include translation prompt
         "--icon=NONE", # No icon (can add later)
         "--clean",     # Clean PyInstaller cache
         main_script
@@ -72,6 +73,7 @@ def main():
         "api_key.txt.template",
         "custom_dictionary.txt",
         "settings.json",
+        "translation_prompt.txt",
         "README.md"
     ]
 
@@ -94,13 +96,15 @@ FIRST TIME SETUP:
    Get your key from: https://platform.openai.com/api-keys
 3. Customize 'custom_dictionary.txt' with your own word mappings (optional)
 4. Adjust 'settings.json' if needed (optional)
+5. Edit 'translation_prompt.txt' for custom translation behavior (optional)
 
 RUNNING THE APPLICATION:
 - Double-click 'DictationApp.exe'
 - The app will appear in your system tray (look for a gray circle icon)
 - Right-click the tray icon to:
-  * Select output language (French, English, German, Spanish, Italian)
-  * Reload dictionary or API key
+  * Select input language (speech language)
+  * Select output language (text language with translation)
+  * Reload dictionary, API key, or prompts
   * Exit the application
 
 USING THE DICTATION:
@@ -126,8 +130,9 @@ For detailed instructions, see README.md
     print(f"  - SETUP.txt (setup instructions)")
     print(f"  - README.md (full documentation)")
     print(f"  - api_key.txt.template (rename and add your API key)")
-    print(f"  - custom_dictionary.txt (optional word mappings)")
+    print(f"  - custom_dictionary.txt (word replacement mappings)")
     print(f"  - settings.json (application settings)")
+    print(f"  - translation_prompt.txt (custom translation prompt)")
 
     print("\n" + "=" * 60)
     print("Next steps:")

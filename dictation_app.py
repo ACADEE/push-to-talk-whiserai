@@ -29,6 +29,7 @@ class ConfigManager:
         self.api_key_file = base_dir / "api_key.txt"
         self.dictionary_file = base_dir / "custom_dictionary.txt"
         self.settings_file = base_dir / "settings.json"
+        self.translation_prompt_file = base_dir / "translation_prompt.txt"
 
     def load_api_key(self) -> Optional[str]:
         """Load OpenAI API key from file"""
@@ -70,7 +71,8 @@ class ConfigManager:
             "sample_rate": 16000,
             "channels": 1,
             "audio_device": None,
-            "output_language": "fr"  # Default: French to French (no translation)
+            "input_language": "fr",  # Language spoken (for Whisper transcription)
+            "output_language": "fr"  # Language for text output (with translation if different)
         }
 
         try:
@@ -91,6 +93,21 @@ class ConfigManager:
                 json.dump(settings, f, indent=2)
         except Exception as e:
             print(f"Error saving settings: {e}")
+
+    def load_translation_prompt(self) -> str:
+        """Load custom translation prompt from file"""
+        default_prompt = "You are a professional translator. Translate the following text from {source_language} to {target_language} accurately and naturally. Only provide the translation, nothing else."
+
+        try:
+            if self.translation_prompt_file.exists():
+                with open(self.translation_prompt_file, 'r', encoding='utf-8') as f:
+                    prompt = f.read().strip()
+                    if prompt:
+                        return prompt
+        except Exception as e:
+            print(f"Error loading translation prompt: {e}")
+
+        return default_prompt
 
 
 class AudioRecorder:
@@ -183,8 +200,9 @@ class Translator:
         "it": "Italian"
     }
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, custom_prompt: str = None):
         self.client = OpenAI(api_key=api_key)
+        self.custom_prompt = custom_prompt
 
     def translate(self, text: str, source_lang: str = "fr", target_lang: str = "en") -> Optional[str]:
         """Translate text from source language to target language"""
@@ -196,13 +214,22 @@ class Translator:
             source_name = self.LANGUAGES.get(source_lang, source_lang)
             target_name = self.LANGUAGES.get(target_lang, target_lang)
 
-            prompt = f"Translate the following text from {source_name} to {target_name}. Only provide the translation, nothing else:\n\n{text}"
+            # Use custom prompt if available, otherwise use default
+            if self.custom_prompt:
+                system_prompt = self.custom_prompt.format(
+                    source_language=source_name,
+                    target_language=target_name
+                )
+            else:
+                system_prompt = f"You are a professional translator. Translate from {source_name} to {target_name} accurately and naturally."
+
+            user_prompt = f"Translate the following text from {source_name} to {target_name}. Only provide the translation, nothing else:\n\n{text}"
 
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",  # Using mini model for cost efficiency
                 messages=[
-                    {"role": "system", "content": f"You are a professional translator. Translate from {source_name} to {target_name} accurately and naturally."},
-                    {"role": "user", "content": prompt}
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.3,
                 max_tokens=500
@@ -256,6 +283,7 @@ class DictationApp:
         self.api_key = None
         self.custom_dictionary = {}
         self.settings = {}
+        self.translation_prompt = None
         self.reload_configuration()
 
         # Initialize components
@@ -278,15 +306,17 @@ class DictationApp:
         self.api_key = self.config_manager.load_api_key()
         self.custom_dictionary = self.config_manager.load_custom_dictionary()
         self.settings = self.config_manager.load_settings()
+        self.translation_prompt = self.config_manager.load_translation_prompt()
 
         print(f"Loaded {len(self.custom_dictionary)} dictionary entries")
         print(f"Hotkey: {self.settings.get('hotkey', 'right ctrl')}")
+        print(f"Input language: {self.settings.get('input_language', 'fr')} → Output language: {self.settings.get('output_language', 'fr')}")
 
     def initialize_components(self):
         """Initialize application components"""
         if self.api_key:
             self.transcriber = WhisperTranscriber(self.api_key)
-            self.translator = Translator(self.api_key)
+            self.translator = Translator(self.api_key, custom_prompt=self.translation_prompt)
         else:
             print("WARNING: No API key found. Transcription will not work.")
 
@@ -297,21 +327,34 @@ class DictationApp:
         )
 
     def create_icon_image(self, state: str = "idle") -> Image.Image:
-        """Create system tray icon based on state"""
-        # Create a simple colored circle
+        """Create system tray icon based on state with improved visibility"""
         size = (64, 64)
-        image = Image.new('RGB', size, color='white')
+        image = Image.new('RGBA', size, color=(0, 0, 0, 0))  # Transparent background
         draw = ImageDraw.Draw(image)
 
-        # Color based on state
-        colors = {
-            "idle": (100, 100, 100),      # Gray
-            "recording": (255, 0, 0),      # Red
-            "processing": (255, 165, 0)    # Orange
-        }
+        if state == "idle":
+            # Gray microphone icon
+            draw.ellipse([16, 16, 48, 48], fill=(100, 100, 100), outline=(60, 60, 60), width=2)
+            # Small mic detail
+            draw.ellipse([28, 24, 36, 40], fill=(200, 200, 200))
 
-        color = colors.get(state, colors["idle"])
-        draw.ellipse([8, 8, 56, 56], fill=color, outline='black')
+        elif state == "recording":
+            # Bright red pulsing circle - VERY VISIBLE
+            draw.ellipse([4, 4, 60, 60], fill=(255, 0, 0), outline=(180, 0, 0), width=3)
+            # White recording dot in center
+            draw.ellipse([24, 24, 40, 40], fill=(255, 255, 255))
+            # Add small text "REC"
+            try:
+                # Simple visual indicator without font
+                draw.rectangle([20, 48, 44, 56], fill=(255, 255, 255))
+            except:
+                pass
+
+        elif state == "processing":
+            # Orange processing indicator
+            draw.ellipse([12, 12, 52, 52], fill=(255, 165, 0), outline=(200, 120, 0), width=2)
+            # Rotating effect with arcs
+            draw.arc([16, 16, 48, 48], 0, 270, fill=(255, 215, 0), width=4)
 
         return image
 
@@ -373,9 +416,10 @@ class DictationApp:
                 self.show_notification("Error", "API key not configured")
                 return
 
-            # Transcribe audio (always in French)
-            print("Transcribing audio...")
-            text = self.transcriber.transcribe(audio_file, language="fr")
+            # Transcribe audio using configured input language
+            input_language = self.settings.get('input_language', 'fr')
+            print(f"Transcribing audio (language: {input_language})...")
+            text = self.transcriber.transcribe(audio_file, language=input_language)
 
             # Clean up temp file
             try:
@@ -394,10 +438,11 @@ class DictationApp:
             print(f"After dictionary: {corrected_text}")
 
             # Translate to output language if needed
+            input_language = self.settings.get('input_language', 'fr')
             output_language = self.settings.get('output_language', 'fr')
-            if output_language != 'fr' and self.translator:
-                print(f"Translating to {output_language}...")
-                translated_text = self.translator.translate(corrected_text, source_lang="fr", target_lang=output_language)
+            if output_language != input_language and self.translator:
+                print(f"Translating from {input_language} to {output_language}...")
+                translated_text = self.translator.translate(corrected_text, source_lang=input_language, target_lang=output_language)
                 print(f"After translation: {translated_text}")
                 final_text = translated_text
             else:
@@ -445,35 +490,62 @@ class DictationApp:
 
     def create_menu(self):
         """Create system tray menu"""
-        # Get current language for checkmark
-        current_lang = self.settings.get('output_language', 'fr')
+        # Get current languages for checkmarks
+        current_input_lang = self.settings.get('input_language', 'fr')
+        current_output_lang = self.settings.get('output_language', 'fr')
 
-        # Create language submenu
-        language_menu = pystray.Menu(
+        # Create input language submenu
+        input_language_menu = pystray.Menu(
             pystray.MenuItem(
-                "Français (FR)" + (" ✓" if current_lang == "fr" else ""),
+                "Français (FR)" + (" ✓" if current_input_lang == "fr" else ""),
+                lambda: self.set_input_language("fr")
+            ),
+            pystray.MenuItem(
+                "English (EN)" + (" ✓" if current_input_lang == "en" else ""),
+                lambda: self.set_input_language("en")
+            ),
+            pystray.MenuItem(
+                "Deutsch (DE)" + (" ✓" if current_input_lang == "de" else ""),
+                lambda: self.set_input_language("de")
+            ),
+            pystray.MenuItem(
+                "Español (ES)" + (" ✓" if current_input_lang == "es" else ""),
+                lambda: self.set_input_language("es")
+            ),
+            pystray.MenuItem(
+                "Italiano (IT)" + (" ✓" if current_input_lang == "it" else ""),
+                lambda: self.set_input_language("it")
+            )
+        )
+
+        # Create output language submenu
+        output_language_menu = pystray.Menu(
+            pystray.MenuItem(
+                "Français (FR)" + (" ✓" if current_output_lang == "fr" else ""),
                 lambda: self.set_output_language("fr")
             ),
             pystray.MenuItem(
-                "English (EN)" + (" ✓" if current_lang == "en" else ""),
+                "English (EN)" + (" ✓" if current_output_lang == "en" else ""),
                 lambda: self.set_output_language("en")
             ),
             pystray.MenuItem(
-                "Deutsch (DE)" + (" ✓" if current_lang == "de" else ""),
+                "Deutsch (DE)" + (" ✓" if current_output_lang == "de" else ""),
                 lambda: self.set_output_language("de")
             ),
             pystray.MenuItem(
-                "Español (ES)" + (" ✓" if current_lang == "es" else ""),
+                "Español (ES)" + (" ✓" if current_output_lang == "es" else ""),
                 lambda: self.set_output_language("es")
             ),
             pystray.MenuItem(
-                "Italiano (IT)" + (" ✓" if current_lang == "it" else ""),
+                "Italiano (IT)" + (" ✓" if current_output_lang == "it" else ""),
                 lambda: self.set_output_language("it")
             )
         )
 
         return pystray.Menu(
-            pystray.MenuItem("Output Language", language_menu),
+            pystray.MenuItem("Input Language (Speech)", input_language_menu),
+            pystray.MenuItem("Output Language (Text)", output_language_menu),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("Reload Dictionary", self.menu_reload_dictionary),
             pystray.MenuItem("Reload API Key", self.menu_reload_api_key),
             pystray.MenuItem("About", self.menu_about),
@@ -488,17 +560,41 @@ class DictationApp:
                              f"Loaded {len(self.custom_dictionary)} entries")
 
     def menu_reload_api_key(self):
-        """Reload API key"""
+        """Reload API key and translation prompt"""
         self.api_key = self.config_manager.load_api_key()
+        self.translation_prompt = self.config_manager.load_translation_prompt()
         if self.api_key:
             self.transcriber = WhisperTranscriber(self.api_key)
-            self.translator = Translator(self.api_key)
-            self.show_notification("API Key Reloaded", "API key loaded successfully")
+            self.translator = Translator(self.api_key, custom_prompt=self.translation_prompt)
+            self.show_notification("Configuration Reloaded", "API key and prompts loaded successfully")
         else:
             self.show_notification("Error", "Failed to load API key")
 
+    def set_input_language(self, language_code: str):
+        """Set the input language (speech) and save to settings"""
+        self.settings['input_language'] = language_code
+        self.config_manager.save_settings(self.settings)
+
+        language_names = {
+            "fr": "Français",
+            "en": "English",
+            "de": "Deutsch",
+            "es": "Español",
+            "it": "Italiano"
+        }
+
+        language_name = language_names.get(language_code, language_code)
+        self.show_notification(
+            "Input Language Changed",
+            f"Speech language set to {language_name}"
+        )
+
+        # Recreate menu to update checkmarks
+        if self.icon:
+            self.icon.menu = self.create_menu()
+
     def set_output_language(self, language_code: str):
-        """Set the output language and save to settings"""
+        """Set the output language (text) and save to settings"""
         self.settings['output_language'] = language_code
         self.config_manager.save_settings(self.settings)
 
@@ -512,8 +608,8 @@ class DictationApp:
 
         language_name = language_names.get(language_code, language_code)
         self.show_notification(
-            "Language Changed",
-            f"Output language set to {language_name}"
+            "Output Language Changed",
+            f"Text output language set to {language_name}"
         )
 
         # Recreate menu to update checkmarks
@@ -522,11 +618,12 @@ class DictationApp:
 
     def menu_about(self):
         """Show about information"""
-        current_lang = self.settings.get('output_language', 'fr')
+        input_lang = self.settings.get('input_language', 'fr')
+        output_lang = self.settings.get('output_language', 'fr')
         lang_names = {"fr": "FR", "en": "EN", "de": "DE", "es": "ES", "it": "IT"}
         self.show_notification(
             "Push-to-Talk Whisper Dictation",
-            f"Voice-to-text with translation\nCurrent output: {lang_names.get(current_lang, current_lang)}"
+            f"Voice-to-text with translation\nInput: {lang_names.get(input_lang, input_lang)} → Output: {lang_names.get(output_lang, output_lang)}"
         )
 
     def menu_exit(self):
