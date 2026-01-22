@@ -37,6 +37,15 @@ def main():
         "--add-data", "custom_dictionary.txt:.",  # Include dictionary file
         "--add-data", "settings.json:.",  # Include settings file
         "--add-data", "translation_prompt.txt:.",  # Include translation prompt
+        # Hidden imports for packages PyInstaller might miss
+        "--hidden-import", "sounddevice",
+        "--hidden-import", "_sounddevice",
+        "--hidden-import", "numpy",
+        "--hidden-import", "numpy.core._multiarray_umath",
+        "--hidden-import", "openai",
+        "--hidden-import", "pystray._darwin",
+        "--hidden-import", "PIL._tkinter_finder",
+        "--collect-all", "sounddevice",  # Collect all sounddevice files including binaries
         "--icon=NONE", # No icon (can add later with .icns file)
         "--clean",     # Clean PyInstaller cache
         "--osx-bundle-identifier", "com.acadee.dictationapp",  # macOS bundle identifier
