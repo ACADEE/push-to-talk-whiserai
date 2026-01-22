@@ -3,5 +3,6 @@
   "sample_rate": 16000,
   "channels": 1,
   "audio_device": null,
+  "input_language": "fr",
   "output_language": "fr"
 }

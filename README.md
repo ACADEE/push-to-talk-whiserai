@@ -5,20 +5,21 @@ A Windows desktop application that enables voice-to-text dictation directly into
 ## Features
 
 - **Push-to-Talk Recording**: Hold a configurable hotkey to record audio, release to transcribe
-- **Multi-Language Translation**: Speak in French and get output in French, English, German, Spanish, or Italian
-- **Universal Compatibility**: Works with any Windows application (Word, Notepad, browsers, etc.)
+- **Multi-Language Input & Output**: Speak in any supported language (FR/EN/DE/ES/IT) and get output in any supported language
+- **Customizable Translation**: Edit translation prompts to control translation behavior and style
+- **Universal Compatibility**: Works with any Windows or macOS application (Word, Notepad, browsers, etc.)
 - **Custom Dictionary**: Define custom phonetic mappings for specialized terms, acronyms, and brand names
-- **System Tray Integration**: Minimal UI that runs in the background with language selection menu
-- **Real-time Feedback**: Visual indicators for recording and processing states
+- **System Tray Integration**: Minimal UI that runs in the background with language selection menus
+- **Enhanced Visual Feedback**: Bright red recording indicator, visible processing states
 - **OpenAI Whisper API**: Industry-leading speech recognition accuracy
 - **Smart Translation**: Powered by GPT-4o-mini for natural, context-aware translations
 
 ## Requirements
 
-- Windows 10 or Windows 11
-- Python 3.8 or higher (for running from source)
-- OpenAI API key with access to Whisper API
-- Microphone connected to your computer
+- **Windows 10/11** or **macOS 10.14+** (Mojave or later)
+- **Python 3.8 or higher** (for running from source)
+- **OpenAI API key** with access to Whisper API
+- **Microphone** connected to your computer
 
 ## Installation
 
@@ -111,6 +112,7 @@ Edit `settings.json` to customize application behavior:
   "sample_rate": 16000,
   "channels": 1,
   "audio_device": null,
+  "input_language": "fr",
   "output_language": "fr"
 }
 ```
@@ -122,12 +124,35 @@ Edit `settings.json` to customize application behavior:
   - `right alt` or `left alt`
   - Function keys: `f1`, `f2`, etc.
   - Or any key name supported by the `keyboard` library
-- **output_language**: Language for the transcribed text (default: `fr`)
-  - `fr` - Français (no translation)
+- **input_language**: Language you speak (for Whisper transcription) (default: `fr`)
+  - `fr` - Français
   - `en` - English
   - `de` - Deutsch (German)
   - `es` - Español (Spanish)
   - `it` - Italiano (Italian)
+- **output_language**: Language for text output (with translation if different from input) (default: `fr`)
+  - `fr` - Français
+  - `en` - English
+  - `de` - Deutsch (German)
+  - `es` - Español (Spanish)
+  - `it` - Italiano (Italian)
+
+### Translation Prompt Customization
+
+Edit `translation_prompt.txt` to customize how the AI translates your text:
+
+```
+You are a professional translator. Translate the following text from {source_language} to {target_language} accurately and naturally. Only provide the translation, nothing else.
+```
+
+**Placeholders**:
+- `{source_language}` - Automatically replaced with input language
+- `{target_language}` - Automatically replaced with output language
+
+**Examples of custom prompts**:
+- Formal style: `"You are a formal business translator..."`
+- Casual style: `"Translate in a casual, friendly tone..."`
+- Technical: `"You are a technical translator specializing in IT and software..."`
 
 ## Usage
 
@@ -149,18 +174,23 @@ Edit `settings.json` to customize application behavior:
    - Wait for the transcribed text to appear
 
 4. **System tray menu** (right-click the tray icon):
-   - **Output Language**: Select your desired output language
-     - Français (FR) - Speak and output in French (no translation)
-     - English (EN) - Speak in French, output in English
-     - Deutsch (DE) - Speak in French, output in German
-     - Español (ES) - Speak in French, output in Spanish
-     - Italiano (IT) - Speak in French, output in Italian
+   - **Input Language (Speech)**: Select the language you speak
+     - Français (FR), English (EN), Deutsch (DE), Español (ES), Italiano (IT)
+   - **Output Language (Text)**: Select the language for text output
+     - Français (FR), English (EN), Deutsch (DE), Español (ES), Italiano (IT)
    - **Reload Dictionary**: Reload custom dictionary without restarting
-   - **Reload API Key**: Reload API key without restarting
-   - **About**: Show application information and current language
+   - **Reload API Key**: Reload API key and translation prompts without restarting
+   - **About**: Show application information and current input→output languages
    - **Exit**: Close the application
 
-## Building Executable
+**Examples**:
+- French speech → French text: Input=FR, Output=FR (no translation)
+- French speech → English text: Input=FR, Output=EN (with translation)
+- English speech → Spanish text: Input=EN, Output=ES (with translation)
+
+## Building Executables
+
+### Windows (.exe)
 
 To build a standalone Windows executable:
 
@@ -183,6 +213,7 @@ To build a standalone Windows executable:
    ├── api_key.txt.template       # Rename and add your API key
    ├── custom_dictionary.txt      # Word mappings
    ├── settings.json              # Settings
+   ├── translation_prompt.txt     # Custom translation prompt
    └── [dependency files]         # Required DLLs
    ```
 
@@ -192,7 +223,41 @@ To build a standalone Windows executable:
    - They add their own API key
    - Run `DictationApp.exe`
 
-**Note:** The build uses `--onedir` mode (not `--onefile`) to ensure config files are easily accessible and editable by users.
+### macOS (.app)
+
+To build a macOS application bundle:
+
+1. **Install dependencies** (including PyInstaller):
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Run the macOS build script**:
+   ```bash
+   python build_mac.py
+   ```
+
+3. **Find your built application**:
+   ```
+   dist/DictationApp.app/
+     Contents/
+       MacOS/
+         DictationApp           # Executable
+       Resources/
+         api_key.txt.template   # Config files
+         custom_dictionary.txt
+         settings.json
+         translation_prompt.txt
+         SETUP.txt
+   ```
+
+4. **Distribute the `.app` bundle**:
+   - Right-click → Compress to create .zip
+   - Users extract and drag to Applications folder
+   - They configure files in Contents/Resources/
+   - Double-click to run
+
+**Note:** Both builds use `--onedir` mode to ensure config files are easily accessible and editable by users.
 
 ## Troubleshooting
 
@@ -273,12 +338,13 @@ Monitor your usage at: https://platform.openai.com/usage
 
 ## Known Limitations
 
-- **Windows only**: This application is designed specifically for Windows
+- **Windows and macOS only**: Cross-platform support (Windows & macOS), Linux not yet supported
 - **Internet required**: Requires internet connection for Whisper API and translation
 - **Hotkey conflicts**: May conflict with other applications using the same hotkey
 - **API latency**: Transcription and translation speed depends on internet connection and API response time
-- **Input language**: Currently configured for French audio input (Whisper transcription)
-- **Translation quality**: Translation quality depends on context and may vary
+- **Language support**: Supports FR, EN, DE, ES, IT (can be extended with code modifications)
+- **Translation quality**: Translation quality depends on context, prompt, and may vary
+- **macOS permissions**: Requires microphone and accessibility permissions on macOS
 
 ## Project Structure
 
@@ -286,11 +352,14 @@ Monitor your usage at: https://platform.openai.com/usage
 push-to-talk-whiserai/
 ├── dictation_app.py          # Main application
 ├── requirements.txt           # Python dependencies
-├── settings.json             # Application settings
+├── settings.json             # Application settings (input/output languages, hotkey)
 ├── custom_dictionary.txt     # Custom word mappings
+├── translation_prompt.txt    # Custom translation prompt template
 ├── api_key.txt              # Your OpenAI API key (not in git)
 ├── api_key.txt.template     # Template for API key file
-├── build.py                 # Build script for creating .exe
+├── build.py                 # Build script for Windows .exe
+├── build_mac.py             # Build script for macOS .app
+├── INSTALL_WINDOWS.md       # Detailed Windows installation guide
 ├── .gitignore              # Git ignore rules
 └── README.md               # This file
 ```
@@ -334,6 +403,25 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 For issues, questions, or feature requests, please open an issue on GitHub.
 
 ## Changelog
+
+### Version 1.2.0 (Multi-Language Input & macOS Support)
+- **Input language selection**: Choose speech language separately from output language
+  - Added `input_language` setting in settings.json
+  - New "Input Language (Speech)" menu in system tray
+  - Supports FR/EN/DE/ES/IT for speech input
+- **Customizable translation prompts**: Edit translation_prompt.txt to control translation style
+  - Support for {source_language} and {target_language} placeholders
+  - Allows formal, casual, technical, or custom translation styles
+- **Enhanced recording indicator**: Brighter, more visible red recording icon in system tray
+  - Larger red circle during recording
+  - White center dot for clarity
+  - Improved visual feedback
+- **macOS support**: Full macOS .app bundle build support
+  - New build_mac.py script
+  - Proper .app bundle structure
+  - macOS-specific setup instructions
+- **Improved menu organization**: Clearer separation of input and output language menus
+- **Better status display**: About menu shows Input → Output language configuration
 
 ### Version 1.1.1 (Build & Installation Update)
 - Improved build.py script for better .exe generation
